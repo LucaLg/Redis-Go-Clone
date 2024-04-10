@@ -1,6 +1,9 @@
 package main
 
-import "unicode"
+import (
+	"fmt"
+	"unicode"
+)
 
 func parse(input []byte) string {
 	var length int
@@ -11,5 +14,7 @@ func parse(input []byte) string {
 	}
 	i += 4
 	bulkString := input[i : i+length]
+	fmt.Println("Bulk string: ", string(bulkString))
+
 	return string(bulkString)
 }
