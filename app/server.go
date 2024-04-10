@@ -25,13 +25,12 @@ func main() {
 func handleClient(con net.Conn) {
 	defer con.Close()
 	ping := []byte("PING\r\n")
-	var i, err = con.Read(ping)
-	for i > 0 {
-		if i > 0 {
+	for j, err := con.Read(ping); j > 0; {
+
+		if j > 0 {
 			fmt.Println("Received: ", string(ping))
 			con.Write([]byte("+PONG\r\n"))
 		}
-		i, err = con.Read(ping)
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
 			os.Exit(1)
