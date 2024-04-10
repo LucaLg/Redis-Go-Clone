@@ -32,7 +32,6 @@ func handleClient(con net.Conn) {
 		if err != nil {
 			os.Exit(1)
 		}
-		fmt.Println("Received hello: ", buf[:i])
 		response, err := parse(buf[:i])
 		if err != nil {
 			fmt.Println("Error parsing input: ", err.Error())
