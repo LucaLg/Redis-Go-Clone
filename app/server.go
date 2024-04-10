@@ -32,7 +32,7 @@ func handleClient(con net.Conn) {
 		if err != nil {
 			os.Exit(1)
 		}
-		fmt.Println("Received hello: ", string(buf[:i]))
+		fmt.Println("Received hello: ", buf[:i])
 		_, err = con.Write([]byte(parse(buf[:i])))
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
