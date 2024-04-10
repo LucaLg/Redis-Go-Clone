@@ -20,7 +20,7 @@ func main() {
 	}
 
 	ping := []byte("PING\r\n")
-	i, err := con.Write(ping)
+	i, err := con.Read(ping)
 	if i > 0 {
 		fmt.Println("Received: ", string(ping))
 		con.Write([]byte("+PONG\r\n"))
