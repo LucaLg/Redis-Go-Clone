@@ -14,6 +14,7 @@ func parse(input []byte) (string, error) {
 		i++
 	}
 	num, err := strconv.Atoi(arrayLength)
+	fmt.Println("Array length: ", num)
 	if num == 1 {
 		return "+PONG\r\n", nil
 	}

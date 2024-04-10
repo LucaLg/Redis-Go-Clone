@@ -33,7 +33,12 @@ func handleClient(con net.Conn) {
 			os.Exit(1)
 		}
 		fmt.Println("Received hello: ", buf[:i])
-		_, err = con.Write([]byte(parse(buf[:i])))
+		response, err := parse(buf[:i])
+		if err != nil {
+			fmt.Println("Error parsing input: ", err.Error())
+			os.Exit(1)
+		}
+		_, err = con.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
 			os.Exit(1)
