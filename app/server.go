@@ -24,9 +24,9 @@ func main() {
 }
 func handleClient(con net.Conn) {
 	defer con.Close()
-	ping := []byte("PING\r\n")
+	buf := make([]byte, 1024)
 	for {
-		_, err := con.Read(ping)
+		_, err := con.Read(buf)
 		if err != nil {
 			os.Exit(1)
 		}
