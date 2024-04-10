@@ -2,21 +2,28 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"unicode"
 )
 
-func parse(input []byte) string {
-	var length int
-	fmt.Println("Input byte slice: ", string(input))
+func parse(input []byte) (string, error) {
+	var arrayLength string
 	i := 1
 	for unicode.IsDigit(rune(input[i])) {
-		length++
+		arrayLength += string(input[i])
 		i++
 	}
-	i += 4
-	bulkString := input[i : i+length]
+	num, err := strconv.Atoi(arrayLength)
+	if num == 1 {
+		return "+PONG\r\n", nil
+	}
+	if err != nil {
+		fmt.Println("Error parsing array length: ", err.Error())
+		return "", err
+	}
 
-	fmt.Println("Bulk string: ", string(bulkString))
-
-	return string(bulkString)
+	return string(""), nil
+}
+func parseWord(word []byte) string {
+	return string(word)
 }
