@@ -29,8 +29,8 @@ func main() {
 		fmt.Println("Error writing to connection: ", err.Error())
 		os.Exit(1)
 	}
-	j, err := con.Read(ping)
-	if j > 0 {
+	x, err := con.Read(ping)
+	if x > 0 {
 		fmt.Println("Received: ", string(ping))
 		con.Write([]byte("+PONG\r\n"))
 	}
