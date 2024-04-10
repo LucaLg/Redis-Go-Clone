@@ -20,7 +20,7 @@ func main() {
 	}
 
 	ping := []byte("PING\r\n")
-	for j := 0; j < 3; j++ {
+	for j := 0; j < 2; j++ {
 		i, err := con.Read(ping)
 		if i > 0 {
 			fmt.Println("Received: ", string(ping))
