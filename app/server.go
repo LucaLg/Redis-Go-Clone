@@ -13,12 +13,17 @@ func main() {
 		os.Exit(1)
 	}
 
-	con, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
+	for {
+		con, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
+		handleClient(con)
 	}
-
+}
+func handleClient(con net.Conn) {
+	defer con.Close()
 	ping := []byte("PING\r\n")
 	i, err := con.Read(ping)
 	if i > 0 {
@@ -29,14 +34,4 @@ func main() {
 		fmt.Println("Error writing to connection: ", err.Error())
 		os.Exit(1)
 	}
-	x, err := con.Read(ping)
-	if x > 0 {
-		fmt.Println("Received: ", string(ping))
-		con.Write([]byte("+PONG\r\n"))
-	}
-	if err != nil {
-		fmt.Println("Error writing to connection: ", err.Error())
-		os.Exit(1)
-	}
-
 }
