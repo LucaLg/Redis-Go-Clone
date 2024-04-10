@@ -20,14 +20,16 @@ func main() {
 	}
 
 	ping := []byte("PING\r\n")
-	i, err := con.Read(ping)
-	if i > 0 {
-		fmt.Println("Received: ", string(ping))
-		con.Write([]byte("+PONG\r\n"))
-	}
-	if err != nil {
-		fmt.Println("Error writing to connection: ", err.Error())
-		os.Exit(1)
+	for j := 0; j < 3; j++ {
+		i, err := con.Read(ping)
+		if i > 0 {
+			fmt.Println("Received: ", string(ping))
+			con.Write([]byte("+PONG\r\n"))
+		}
+		if err != nil {
+			fmt.Println("Error writing to connection: ", err.Error())
+			os.Exit(1)
+		}
 	}
 
 }
