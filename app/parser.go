@@ -4,8 +4,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
 )
+
+var store = make(map[string]string)
+var mutex = &sync.Mutex{}
 
 func parse(input []byte) (string, error) {
 	var arrayLength string
@@ -40,7 +44,32 @@ func handleCmds(cmdArr []string) (string, error) {
 		return "+PONG\r\n", nil
 	case "COMMAND":
 		return "+PONG\r\n", nil
+	case "set":
+		if len(cmdArr) == 3 {
+			handleSet(cmdArr[1], cmdArr[2])
+			return "+OK\r\n", nil
+		} else {
+			return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
+		}
+	case "get":
+		if len(cmdArr) == 2 {
+			return handleGet(cmdArr[1]), nil
+		} else {
+
+			return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
+		}
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
+}
+func handleSet(key, value string) {
+	mutex.Lock()
+	store[key] = value
+	mutex.Unlock()
+}
+func handleGet(key string) string {
+	mutex.Lock()
+	val := store[key]
+	mutex.Unlock()
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
 }
