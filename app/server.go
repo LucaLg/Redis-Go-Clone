@@ -14,20 +14,17 @@ func main() {
 	}
 	sem := make(chan struct{}, 100)
 	for {
+		con, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
 		sem <- struct{}{}
-		go func() {
-			handleConnection(l)
+		go func(con net.Conn) {
+			handleClient(con)
 			<-sem
-		}()
+		}(con)
 	}
-}
-func handleConnection(l net.Listener) {
-	con, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
-	handleClient(con)
 }
 func handleClient(con net.Conn) {
 	defer con.Close()
