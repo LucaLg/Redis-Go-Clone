@@ -12,17 +12,18 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
-	// sem := make(chan struct{}, 100)
+	sem := make(chan struct{}, 100)
 	for {
 		con, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
 		}
-		// go func(con net.Conn) {
-		// 	handleClient(con)
-		// }(con)
-		go handleClient(con)
+		sem <- struct{}{}
+		go func(con net.Conn) {
+			handleClient(con)
+			<-sem
+		}(con)
 	}
 }
 func handleClient(con net.Conn) {
