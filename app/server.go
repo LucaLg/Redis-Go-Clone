@@ -17,7 +17,7 @@ func main() {
 		con, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
-			os.Exit(1)
+			continue
 		}
 		go func(con net.Conn) {
 			handleClient(con)
