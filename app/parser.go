@@ -5,10 +5,17 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 )
 
-var store = make(map[string]string)
+type Value struct {
+	value   string
+	savedAt time.Time
+	expire  int
+}
+
+var store = make(map[string]Value)
 var mutex = &sync.Mutex{}
 
 func parse(input []byte) (string, error) {
@@ -49,6 +56,13 @@ func handleCmds(cmdArr []string) (string, error) {
 			handleSet(cmdArr[1], cmdArr[2])
 			return "+OK\r\n", nil
 		} else {
+			if len(cmdArr) == 5 {
+				time, err := strconv.Atoi(cmdArr[4])
+				if err != nil {
+					return "", fmt.Errorf("Parsing error of time")
+				}
+				handleSetExpire(cmdArr[1], cmdArr[2], time)
+			}
 			return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 		}
 	case "get":
@@ -62,14 +76,35 @@ func handleCmds(cmdArr []string) (string, error) {
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
 }
+func handleSetExpire(key, value string, expire int) {
+	mutex.Lock()
+	store[key] = Value{
+		value:   value,
+		savedAt: time.Now(),
+		expire:  expire,
+	}
+	mutex.Unlock()
+}
 func handleSet(key, value string) {
 	mutex.Lock()
-	store[key] = value
+	store[key] = Value{
+		value:   value,
+		savedAt: time.Now(),
+		expire:  -1,
+	}
 	mutex.Unlock()
 }
 func handleGet(key string) string {
 	mutex.Lock()
 	val := store[key]
 	mutex.Unlock()
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(val), val)
+	if val.value == "" {
+		val.value = "$-1\r\n"
+	}
+	now := time.Now()
+	elapsed := val.savedAt.Sub(now)
+	if time.Duration(val.expire) >= elapsed {
+		val.value = "$-1\r\n"
+	}
+	return fmt.Sprintf("$%d\r\n%s\r\n", len(val.value), val.value)
 }
