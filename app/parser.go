@@ -103,7 +103,7 @@ func handleGet(key string) string {
 	}
 	now := time.Now()
 	elapsed := val.savedAt.Sub(now)
-	if time.Duration(val.expire) >= elapsed {
+	if time.Duration(val.expire) >= elapsed && val.expire != -1 {
 		val.value = "$-1\r\n"
 	}
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(val.value), val.value)
