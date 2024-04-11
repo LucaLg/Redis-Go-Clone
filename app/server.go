@@ -31,7 +31,8 @@ func handleClient(con net.Conn) {
 	for {
 		i, err := con.Read(buf)
 		if err != nil {
-			os.Exit(1)
+			fmt.Println("Error parsing input: ", err.Error())
+			return
 		}
 		response, err := parse(buf[:i])
 		if err != nil {
