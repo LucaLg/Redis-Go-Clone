@@ -35,12 +35,12 @@ func handleClient(con net.Conn) {
 		response, err := parse(buf[:i])
 		if err != nil {
 			fmt.Println("Error parsing input: ", err.Error())
-			os.Exit(1)
+			return
 		}
 		_, err = con.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
-			os.Exit(1)
+			return
 		}
 	}
 }
