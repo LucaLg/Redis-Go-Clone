@@ -21,7 +21,6 @@ func parse(input []byte) (string, error) {
 	for _, inputString := range inputArr {
 		inputString = strings.TrimSpace(inputString)
 		if len(inputString) > 0 && inputString[0] != '$' && inputString[0] != '*' {
-			fmt.Printf("Input of string %s\n", inputString)
 			cmdArr[y] = inputString
 			y++
 		}
