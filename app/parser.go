@@ -15,17 +15,15 @@ func parse(input []byte) (string, error) {
 		i++
 	}
 	inputArr := strings.Split(string(input), "\r\n")
-	// *2\r\n$4\r\necho\r\n$3\r\nhey\r\n
-	// [0] *2
-	// [1] $4
-	// [2] echo
-	// [3] $3
-	// [4] hey
 	num, err := strconv.Atoi(arrayLength)
 	cmdArr := make([]string, num)
+	y := 0
 	for _, inputString := range inputArr {
-		if inputString[0] != '$' && inputString[0] != '*' {
-			cmdArr = append(cmdArr, inputString)
+		inputString = strings.TrimSpace(inputString)
+		if len(inputString) > 0 && inputString[0] != '$' && inputString[0] != '*' {
+			fmt.Printf("Input of string %s\n", inputString)
+			cmdArr[y] = inputString
+			y++
 		}
 	}
 	if err != nil {
@@ -38,8 +36,10 @@ func parse(input []byte) (string, error) {
 func handleCmds(cmdArr []string) (string, error) {
 	switch cmdArr[0] {
 	case "echo":
-		return cmdArr[1], nil
+		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
 	case "ping":
+		return "+PONG\r\n", nil
+	case "COMMAND":
 		return "+PONG\r\n", nil
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])

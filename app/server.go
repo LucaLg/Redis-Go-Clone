@@ -12,8 +12,13 @@ func main() {
 		fmt.Println("Failed to bind to port 6379")
 		os.Exit(1)
 	}
+	sem := make(chan struct{}, 100)
 	for {
-		go handleConnection(l)
+		sem <- struct{}{}
+		go func() {
+			handleConnection(l)
+			<-sem
+		}()
 	}
 }
 func handleConnection(l net.Listener) {
