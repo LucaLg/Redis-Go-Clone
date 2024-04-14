@@ -54,15 +54,20 @@ func handleCmds(cmdArr []string) (string, error) {
 		handleSet(cmdArr)
 		return "+OK\r\n", nil
 	case "get":
-		if len(cmdArr) == 2 {
-			return handleGet(cmdArr[1]), nil
-		} else {
+		return handleGet(cmdArr[1]), nil
+	case "info":
+		return handleInfo(cmdArr), nil
 
-			return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
-		}
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
+}
+func handleInfo(cmdArr []string) string {
+	if cmdArr[1] == "replication" {
+		return transformStringToBulkString("role:master")
+	}
+	return " "
+
 }
 func handleSet(cmdArr []string) {
 
@@ -94,5 +99,5 @@ func handleGet(key string) string {
 			return "$-1\r\n"
 		}
 	}
-	return fmt.Sprintf("$%d\r\n%s\r\n", len(val.value), val.value)
+	return transformStringToBulkString(val.value)
 }

@@ -14,7 +14,7 @@ func main() {
 	add := fmt.Sprintf("0.0.0.0:%s", *portFlag)
 	l, err := net.Listen("tcp", add)
 	if err != nil {
-		fmt.Printf("Failed to bind to port %s", portFlag)
+		fmt.Printf("Failed to bind to port %s", *portFlag)
 		os.Exit(1)
 	}
 	sem := make(chan struct{}, 100)
