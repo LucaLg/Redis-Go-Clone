@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -10,7 +9,7 @@ import (
 type Value struct {
 	value   string
 	savedAt time.Time
-	expire  int
+	expire  time.Duration
 }
 
 var store = make(map[string]Value)
@@ -56,19 +55,8 @@ func handleCmds(cmdArr []string) (string, error) {
 	case "COMMAND":
 		return "+PONG\r\n", nil
 	case "set":
-		if len(cmdArr) == 3 {
-			handleSet(cmdArr[1], cmdArr[2])
-			return "+OK\r\n", nil
-		} else {
-			if len(cmdArr) == 5 {
-				time, err := strconv.Atoi(cmdArr[4])
-				if err != nil {
-					return "", fmt.Errorf("Parsing error of time")
-				}
-				handleSetExpire(cmdArr[1], cmdArr[2], time)
-			}
-			return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
-		}
+		handleSet(cmdArr)
+		return "+Ok\r\n", nil
 	case "get":
 		if len(cmdArr) == 2 {
 			return handleGet(cmdArr[1]), nil
@@ -80,21 +68,20 @@ func handleCmds(cmdArr []string) (string, error) {
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
 }
-func handleSetExpire(key, value string, expire int) {
+func handleSet(cmdArr []string) {
+	var expire = time.Duration(-1)
+	if len(cmdArr) == 5 {
+		expoireTime, err := time.ParseDuration(cmdArr[4])
+		if err != nil {
+			fmt.Errorf("Error parsing expire Time %s occured", err)
+		}
+		expire = expoireTime
+	}
 	mutex.Lock()
-	store[key] = Value{
-		value:   value,
+	store[cmdArr[1]] = Value{
+		value:   cmdArr[2],
 		savedAt: time.Now(),
 		expire:  expire,
-	}
-	mutex.Unlock()
-}
-func handleSet(key, value string) {
-	mutex.Lock()
-	store[key] = Value{
-		value:   value,
-		savedAt: time.Now(),
-		expire:  -1,
 	}
 	mutex.Unlock()
 }

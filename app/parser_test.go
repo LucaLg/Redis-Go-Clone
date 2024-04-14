@@ -10,7 +10,7 @@ func TestParsetwo(t *testing.T) {
 	echoCommand := []byte("*2\r\n$4\r\necho\r\n$5\r\nhello\r\n")
 	setCommand := []byte("*3\r\n$3\r\nset\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n")
 	getCommand := []byte("*2\r\n$3\r\nget\r\n$5\r\nmykey\r\n")
-
+	setArgsCommand := []byte("*5\r\n$3\r\nset\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$2\r\nPX\r\n$3\r\n100\r\n")
 	gotPing, err := parse(pingCommand)
 	if err != nil {
 		t.Fatalf("Test failed")
@@ -35,6 +35,14 @@ func TestParsetwo(t *testing.T) {
 	}
 	wantSet := "+OK\r\n"
 	if gotSet != wantSet {
+		t.Fatalf("Test failed because %s not equal to %s", gotSet, wantSet)
+	}
+	gotSetArgs, err := parse(setArgsCommand)
+	if err != nil {
+		t.Fatalf("Test failed")
+	}
+	wantSetArgs := "+OK\r\n"
+	if gotSetArgs != wantSetArgs {
 		t.Fatalf("Test failed because %s not equal to %s", gotSet, wantSet)
 	}
 
