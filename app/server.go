@@ -1,15 +1,20 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
 )
 
+var portFlag = flag.String("port", "6379", "Give a custom port to run the server ")
+
 func main() {
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+	flag.Parse()
+	add := fmt.Sprintf("0.0.0.0:%s", *portFlag)
+	l, err := net.Listen("tcp", add)
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Printf("Failed to bind to port %s", portFlag)
 		os.Exit(1)
 	}
 	sem := make(chan struct{}, 100)
