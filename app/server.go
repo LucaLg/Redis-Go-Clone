@@ -9,8 +9,14 @@ import (
 
 var portFlag = flag.String("port", "6379", "Give a custom port to run the server ")
 
+var infoFlag = flag.Bool("replicaof", false, "Specify if the server is a replica")
+var status = "master"
+
 func main() {
 	flag.Parse()
+	if *infoFlag {
+		status = "slave"
+	}
 	add := fmt.Sprintf("0.0.0.0:%s", *portFlag)
 	l, err := net.Listen("tcp", add)
 	if err != nil {

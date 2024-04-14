@@ -64,9 +64,10 @@ func handleCmds(cmdArr []string) (string, error) {
 }
 func handleInfo(cmdArr []string) string {
 	if cmdArr[1] == "replication" {
-		return transformStringToBulkString("role:master")
+
+		return transformStringToBulkString(fmt.Sprintf("role:%s", status))
 	}
-	return " "
+	return ""
 
 }
 func handleSet(cmdArr []string) {
