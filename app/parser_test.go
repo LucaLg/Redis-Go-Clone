@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestParsetwo(t *testing.T) {
@@ -45,7 +46,17 @@ func TestParsetwo(t *testing.T) {
 	if gotSetArgs != wantSetArgs {
 		t.Fatalf("Test failed because %s not equal to %s", gotSet, wantSet)
 	}
+	time.Sleep(200 * time.Millisecond)
+	gotGetPx, err := parse([]byte("*2\r\n$3\r\nget\r\n$3\r\nfoo\r\n"))
+	if err != nil {
 
+		t.Fatalf("Test failed")
+	}
+	wantGetPX := "$-1\r\n"
+
+	if gotGetPx != wantGetPX {
+		t.Fatalf("Test failed because %s not equal to %s", gotGetPx, wantGetPX)
+	}
 	gotGet, err := parse(getCommand)
 	if err != nil {
 		t.Fatalf("Test failed")

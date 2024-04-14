@@ -65,9 +65,10 @@ func handleCmds(cmdArr []string) (string, error) {
 	}
 }
 func handleSet(cmdArr []string) {
+
 	var expire = time.Duration(-1)
 	if len(cmdArr) == 5 {
-		expoireTime, err := time.ParseDuration(cmdArr[4])
+		expoireTime, err := time.ParseDuration(cmdArr[4] + "ms")
 		if err != nil {
 			fmt.Errorf("Error parsing expire Time %s occured", err)
 		}
@@ -87,7 +88,7 @@ func handleGet(key string) string {
 	mutex.Unlock()
 	if val.expire != time.Duration(-1) {
 		now := time.Now()
-		elapsed := val.savedAt.Sub(now)
+		elapsed := now.Sub(val.savedAt)
 		if val.expire < elapsed {
 			delete(store, key)
 			return "$-1\r\n"
