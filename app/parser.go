@@ -3,10 +3,8 @@ package main
 import (
 	"fmt"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
-	"unicode"
 )
 
 type Value struct {
@@ -18,31 +16,37 @@ type Value struct {
 var store = make(map[string]Value)
 var mutex = &sync.Mutex{}
 
-func parse(input []byte) (string, error) {
-	var arrayLength string
-	i := 1
-	for unicode.IsDigit(rune(input[i])) {
-		arrayLength += string(input[i])
+func parseLength(input []byte, index int) (int, int) {
+	var arrayLength int
+	var i int = index + 1
+	for input[i] != '\r' {
+		arrayLength = (arrayLength * 10) + byteToDigit(input[i])
 		i++
 	}
-	inputArr := strings.Split(string(input), "\r\n")
-	num, err := strconv.Atoi(arrayLength)
-	cmdArr := make([]string, num)
-	y := 0
-	for _, inputString := range inputArr {
-		inputString = strings.TrimSpace(inputString)
-		if len(inputString) > 0 && inputString[0] != '$' && inputString[0] != '*' {
-			cmdArr[y] = inputString
-			y++
-		}
-	}
-	if err != nil {
-		fmt.Println("Error parsing array length: ", err.Error())
-		return "", err
-	}
-
-	return handleCmds(cmdArr)
+	return arrayLength, i + 2
 }
+func byteToDigit(b byte) int {
+	return int(b - '0')
+}
+func parseWords(input []byte, startIndex int) (string, int) {
+	wordLength, index := parseLength(input, startIndex)
+	return string(input[index : index+wordLength]), wordLength + index + 2
+}
+func parse(input []byte) (string, error) {
+	arrayLength, index := parseLength(input, 0)
+	cmds := make([]string, arrayLength)
+	for i := 0; i < arrayLength; i++ {
+		cmds[i], index = parseWords(input, index)
+	}
+	fmt.Print(cmds)
+	res, err := handleCmds(cmds)
+	if err != nil {
+		return "", fmt.Errorf("An error occurred handling the commands: %w", err)
+	}
+	fmt.Print(res)
+	return handleCmds(cmds)
+}
+
 func handleCmds(cmdArr []string) (string, error) {
 	switch cmdArr[0] {
 	case "echo":
