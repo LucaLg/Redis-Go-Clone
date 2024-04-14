@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 )
@@ -36,18 +37,13 @@ func parse(input []byte) (string, error) {
 	cmds := make([]string, arrayLength)
 	for i := 0; i < arrayLength; i++ {
 		cmds[i], index = parseWords(input, index)
+		cmds[i] = strings.ToLower(cmds[i])
 	}
-	fmt.Print(cmds)
-	res, err := handleCmds(cmds)
-	if err != nil {
-		return "", fmt.Errorf("An error occurred handling the commands: %w", err)
-	}
-	fmt.Print(res)
 	return handleCmds(cmds)
 }
 
 func handleCmds(cmdArr []string) (string, error) {
-	switch cmdArr[0] {
+	switch strings.ToLower(cmdArr[0]) {
 	case "echo":
 		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
 	case "ping":
@@ -56,7 +52,7 @@ func handleCmds(cmdArr []string) (string, error) {
 		return "+PONG\r\n", nil
 	case "set":
 		handleSet(cmdArr)
-		return "+Ok\r\n", nil
+		return "+OK\r\n", nil
 	case "get":
 		if len(cmdArr) == 2 {
 			return handleGet(cmdArr[1]), nil
@@ -89,13 +85,13 @@ func handleGet(key string) string {
 	mutex.Lock()
 	val := store[key]
 	mutex.Unlock()
-	if val.value == "" {
-		val.value = "$-1\r\n"
-	}
-	now := time.Now()
-	elapsed := val.savedAt.Sub(now)
-	if time.Duration(val.expire) >= elapsed && val.expire != -1 {
-		val.value = "$-1\r\n"
+	if val.expire != time.Duration(-1) {
+		now := time.Now()
+		elapsed := val.savedAt.Sub(now)
+		if val.expire < elapsed {
+			delete(store, key)
+			return "$-1\r\n"
+		}
 	}
 	return fmt.Sprintf("$%d\r\n%s\r\n", len(val.value), val.value)
 }
