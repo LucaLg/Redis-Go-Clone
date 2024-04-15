@@ -69,8 +69,9 @@ func handleInfo(cmdArr []string) string {
 			transformStringToBulkString(fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")),
 			transformStringToBulkString(fmt.Sprintf("master_repl_offset:%s", "0")),
 		}
-
-		return transformStringSliceToBulkString(infos)
+		res := transformStringSliceToBulkString(infos)
+		fmt.Println(res)
+		return res
 	}
 	return ""
 
