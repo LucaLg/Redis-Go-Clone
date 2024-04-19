@@ -48,7 +48,7 @@ func (replication *Replication) handshake(s *Server) {
 		log.Fatal(err)
 	}
 	fmt.Println("Response from server:", response)
-	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
+	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.replication.HOST_PORT})
 	_, err = conn.Write([]byte(firstReplconf))
 	if err != nil {
 		log.Fatal(err)
