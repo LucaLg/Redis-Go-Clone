@@ -59,6 +59,10 @@ func (replication *Replication) handshake(s *Server) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	_, err = conn.Write([]byte(transformStringSliceToBulkString([]string{"PSYNC", "?", "-1"})))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 func (s *Server) setup() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
