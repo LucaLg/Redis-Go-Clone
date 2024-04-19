@@ -48,6 +48,9 @@ func (replication *Replication) handshake(s *Server) {
 	}
 	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
 	_, err = conn.Write([]byte(firstReplconf))
+	if err != nil {
+		log.Fatal(err)
+	}
 	resp1, err := bufio.NewReader(conn).ReadString('\n')
 	fmt.Println(resp1)
 	if err != nil {
