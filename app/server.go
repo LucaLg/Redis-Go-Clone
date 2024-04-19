@@ -47,6 +47,32 @@ func (s *Server) handleReplication() {
 	status = "slave"
 
 }
+func (replication *Replication) handshake() {
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replication.HOST_IP, replication.HOST_PORT))
+	if err != nil {
+		fmt.Printf("Replication coulndt connect to master on port %s", replication.HOST_PORT)
+		return
+	}
+	_, err = conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	response, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Response from server:", response)
+	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", replication.HOST_PORT})
+	_, err = conn.Write([]byte(firstReplconf))
+	if err != nil {
+		log.Fatal(err)
+	}
+	_, err = conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	status = "slave"
+}
 func (s *Server) setup() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")

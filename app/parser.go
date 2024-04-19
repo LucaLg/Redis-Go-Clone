@@ -62,7 +62,8 @@ func handleCmds(cmdArr []string) (string, error) {
 		return handleGet(cmdArr[1]), nil
 	case "info":
 		return handleInfo(cmdArr), nil
-
+	case "replconf":
+		return "+OK\r\n", nil
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
