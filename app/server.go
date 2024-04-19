@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"log"
@@ -47,6 +48,8 @@ func (replication *Replication) handshake(s *Server) {
 	}
 	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
 	_, err = conn.Write([]byte(firstReplconf))
+	resp1, err := bufio.NewReader(conn).ReadString('\n')
+	fmt.Println(resp1)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,9 +57,13 @@ func (replication *Replication) handshake(s *Server) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	responseSecondStage, err := bufio.NewReader(conn).ReadString('\n')
+	fmt.Println(responseSecondStage)
 	thirdStage := transformStringSliceToBulkString([]string{"PSYNC", "?", "-1"})
 	fmt.Println(thirdStage)
 
+	responseThirdStage, err := bufio.NewReader(conn).ReadString('\n')
+	fmt.Println(responseThirdStage)
 	_, err = conn.Write([]byte(thirdStage))
 	if err != nil {
 		log.Fatal(err)
