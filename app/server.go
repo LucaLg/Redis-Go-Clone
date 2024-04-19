@@ -61,7 +61,6 @@ func (replication *Replication) handshake(s *Server) {
 func (s *Server) setup() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
-	s.host = "0.0.0.0"
 	s.port = *portFlag
 	flag.Parse()
 	if *replicationFlag {
@@ -69,6 +68,8 @@ func (s *Server) setup() (net.Listener, error) {
 	} else {
 		s.status = "master"
 	}
+	s.host = "0.0.0.0"
+	s.port = *portFlag
 	address := fmt.Sprintf("%s:%s", s.host, s.port)
 	fmt.Println(address)
 	return net.Listen("tcp", address)
