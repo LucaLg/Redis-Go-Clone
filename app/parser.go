@@ -13,8 +13,10 @@ type Value struct {
 	expire  time.Duration
 }
 
-var store = make(map[string]Value)
-var mutex = &sync.Mutex{}
+var (
+	store = make(map[string]Value)
+	mutex = &sync.Mutex{}
+)
 
 func parseLength(input []byte, index int) (int, int) {
 	var arrayLength int
@@ -25,13 +27,16 @@ func parseLength(input []byte, index int) (int, int) {
 	}
 	return arrayLength, i + 2
 }
+
 func byteToDigit(b byte) int {
 	return int(b - '0')
 }
+
 func parseWords(input []byte, startIndex int) (string, int) {
 	wordLength, index := parseLength(input, startIndex)
 	return string(input[index : index+wordLength]), wordLength + index + 2
 }
+
 func parse(input []byte) (string, error) {
 	arrayLength, index := parseLength(input, 0)
 	cmds := make([]string, arrayLength)
@@ -62,6 +67,7 @@ func handleCmds(cmdArr []string) (string, error) {
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
 }
+
 func handleInfo(cmdArr []string) string {
 	if cmdArr[1] == "replication" {
 
@@ -73,11 +79,10 @@ func handleInfo(cmdArr []string) string {
 		return res
 	}
 	return ""
-
 }
-func handleSet(cmdArr []string) {
 
-	var expire = time.Duration(-1)
+func handleSet(cmdArr []string) {
+	expire := time.Duration(-1)
 	if len(cmdArr) == 5 {
 		expoireTime, err := time.ParseDuration(cmdArr[4] + "ms")
 		if err != nil {
@@ -93,6 +98,7 @@ func handleSet(cmdArr []string) {
 	}
 	mutex.Unlock()
 }
+
 func handleGet(key string) string {
 	mutex.Lock()
 	val := store[key]
