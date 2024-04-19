@@ -29,11 +29,11 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	s.replication.handshake()
+	s.replication.handshake(s)
 	status = "slave"
 
 }
-func (replication *Replication) handshake() {
+func (replication *Replication) handshake(s *Server) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replication.HOST_IP, replication.HOST_PORT))
 	if err != nil {
 		fmt.Printf("Replication coulndt connect to master on port %s", replication.HOST_PORT)
@@ -48,7 +48,7 @@ func (replication *Replication) handshake() {
 		log.Fatal(err)
 	}
 	fmt.Println("Response from server:", response)
-	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", replication.HOST_PORT})
+	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
 	_, err = conn.Write([]byte(firstReplconf))
 	if err != nil {
 		log.Fatal(err)
