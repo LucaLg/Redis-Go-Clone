@@ -70,10 +70,9 @@ func handleCmds(cmdArr []string) (string, error) {
 
 func handleInfo(cmdArr []string) string {
 	if cmdArr[1] == "replication" {
-
-		role := transformStringToBulkString(fmt.Sprintf("role:%s", status))
-		replid := transformStringToBulkString(fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"))
-		offset := transformStringToBulkString(fmt.Sprintf("master_repl_offset:%s", "0"))
+		role := fmt.Sprintf("role:%s", status)
+		replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
+		offset := fmt.Sprintf("master_repl_offset:%s", "0")
 		infos := []string{role, replid, offset}
 		res := transformStringSliceToBulkString(infos)
 		return res
