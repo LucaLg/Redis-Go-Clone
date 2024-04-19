@@ -75,7 +75,6 @@ func handleInfo(cmdArr []string) string {
 		offset := fmt.Sprintf("master_repl_offset:%s", "0")
 		info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
 		res := transformStringToBulkString(info)
-		fmt.Println(res)
 		return res
 	}
 	return ""
