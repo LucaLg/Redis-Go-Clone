@@ -29,6 +29,7 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
+	s.status = "slave"
 	s.replication.handshake()
 
 }
@@ -52,16 +53,10 @@ func (replication *Replication) handshake() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	response2, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Response from server:", response2)
 	_, err = conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
 	if err != nil {
 		log.Fatal(err)
 	}
-	status = "slave"
 }
 func (s *Server) setup() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
