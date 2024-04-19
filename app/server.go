@@ -47,8 +47,10 @@ func (replication *Replication) handshake(s *Server) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Server:", s.port)
 	fmt.Println("Response from server:", response)
 	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
+	fmt.Println("Firstreplconf:", firstReplconf)
 	_, err = conn.Write([]byte(firstReplconf))
 	if err != nil {
 		log.Fatal(err)
@@ -61,15 +63,14 @@ func (replication *Replication) handshake(s *Server) {
 func (s *Server) setup() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
-	s.port = *portFlag
 	flag.Parse()
+	s.host = "0.0.0.0"
+	s.port = *portFlag
 	if *replicationFlag {
 		s.handleReplication()
 	} else {
 		s.status = "master"
 	}
-	s.host = "0.0.0.0"
-	s.port = *portFlag
 	address := fmt.Sprintf("%s:%s", s.host, s.port)
 	fmt.Println(address)
 	return net.Listen("tcp", address)
