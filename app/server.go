@@ -29,8 +29,8 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	s.status = "slave"
 	s.replication.handshake()
+	status = "slave"
 
 }
 func (replication *Replication) handshake() {
