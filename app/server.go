@@ -29,22 +29,7 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
-	if err != nil {
-		fmt.Printf("Replication coulndt connect to master on port %s", s.replication.HOST_PORT)
-		return
-	}
-	_, err = conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	response, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Response from server:", response)
-	status = "slave"
+	s.replication.handshake()
 
 }
 func (replication *Replication) handshake() {
@@ -67,6 +52,11 @@ func (replication *Replication) handshake() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	response2, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Response from server:", response2)
 	_, err = conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
 	if err != nil {
 		log.Fatal(err)
