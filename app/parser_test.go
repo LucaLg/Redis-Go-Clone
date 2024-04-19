@@ -79,12 +79,13 @@ func TestParse(t *testing.T) {
 	t.Run("Test info command ", func(t *testing.T) {
 		infoCmd := transformStringSliceToBulkString([]string{"info", "replication"})
 		infos := []string{
-			transformStringToBulkString(fmt.Sprintf("role:%s", status)),
-			transformStringToBulkString(fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")),
-			transformStringToBulkString(fmt.Sprintf("master_repl_offset:%s", "0")),
+			(fmt.Sprintf("role:%s", status)),
+			(fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")),
+			(fmt.Sprintf("master_repl_offset:%s", "0")),
 		}
 		want := transformStringSliceToBulkString(infos)
 		got, err := parse([]byte(infoCmd))
+		fmt.Println(got)
 		if err != nil {
 			t.Fatalf("Test failed")
 		}
