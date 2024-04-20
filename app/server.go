@@ -7,17 +7,26 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 )
 
 type Replication struct {
 	HOST_IP   string
 	HOST_PORT string
 }
+type Value struct {
+	value   string
+	savedAt time.Time
+	expire  time.Duration
+}
 type Server struct {
 	host        string
 	port        string
 	status      string
 	replication Replication
+
+	// mutex sync.Mutex
+	// store map[string]Value
 }
 
 func (s *Server) handleReplication() {
@@ -46,7 +55,7 @@ func (replication *Replication) handshake(s *Server) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	firstReplconf := transformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
+	firstReplconf := TransformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
 	_, err = conn.Write([]byte(firstReplconf))
 	if err != nil {
 		log.Fatal(err)
@@ -62,7 +71,7 @@ func (replication *Replication) handshake(s *Server) {
 	}
 	responseSecondStage, err := bufio.NewReader(conn).ReadString('\n')
 	fmt.Println(responseSecondStage)
-	thirdStage := transformStringSliceToBulkString([]string{"PSYNC", "?", "-1"})
+	thirdStage := TransformStringSliceToBulkString([]string{"PSYNC", "?", "-1"})
 	fmt.Println(thirdStage)
 
 	responseThirdStage, err := bufio.NewReader(conn).ReadString('\n')

@@ -7,12 +7,6 @@ import (
 	"time"
 )
 
-type Value struct {
-	value   string
-	savedAt time.Time
-	expire  time.Duration
-}
-
 var (
 	store = make(map[string]Value)
 	mutex = &sync.Mutex{}
@@ -75,7 +69,7 @@ func handleInfo(cmdArr []string) string {
 		replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
 		offset := fmt.Sprintf("master_repl_offset:%s", "0")
 		info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
-		res := transformStringToBulkString(info)
+		res := TransformStringToBulkString(info)
 		return res
 	}
 	return ""
@@ -111,5 +105,5 @@ func handleGet(key string) string {
 			return "$-1\r\n"
 		}
 	}
-	return transformStringToBulkString(val.value)
+	return TransformStringToBulkString(val.value)
 }
