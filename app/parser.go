@@ -58,6 +58,8 @@ func handleCmds(cmdArr []string) (string, error) {
 		return handleInfo(cmdArr), nil
 	case "replconf":
 		return "+OK\r\n", nil
+	case "psync":
+		return "+OK\r\n", nil
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
@@ -69,7 +71,7 @@ func handleInfo(cmdArr []string) string {
 		replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
 		offset := fmt.Sprintf("master_repl_offset:%s", "0")
 		info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
-		res := TransformStringToBulkString(info)
+		res := StringToBulkString(info)
 		return res
 	}
 	return ""
@@ -105,5 +107,5 @@ func handleGet(key string) string {
 			return "$-1\r\n"
 		}
 	}
-	return TransformStringToBulkString(val.value)
+	return StringToBulkString(val.value)
 }

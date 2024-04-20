@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -20,8 +21,7 @@ type Value struct {
 	expire  time.Duration
 }
 type Server struct {
-	host        string
-	port        string
+	addr        string
 	status      string
 	replication Replication
 
@@ -38,63 +38,50 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	s.replication.handshake(s)
+	err := s.handshake()
+	if err != nil {
+		fmt.Println("An error occured during the handshake")
+		log.Fatalf(err.Error())
+	}
 	status = "slave"
 
 }
-func (replication *Replication) handshake(s *Server) {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", replication.HOST_IP, replication.HOST_PORT))
+func (s *Server) handshake() error {
+	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
 	if err != nil {
-		fmt.Printf("Replication coulndt connect to master on port %s", replication.HOST_PORT)
-		return
+		fmt.Printf("Replication couldnt connect to master on port %s", s.replication.HOST_PORT)
+		return err
 	}
-	_, err = conn.Write([]byte("*1\r\n$4\r\nPING\r\n"))
-	if err != nil {
-		log.Fatal(err)
+	handshakeStages := []string{
+		SliceToBulkString([]string{"PING"}),
+		SliceToBulkString([]string{"REPLCONF", "listening-port", strings.Split(s.addr, ":")[1]}),
+		SliceToBulkString([]string{"REPLCONF", "capa", "psync2"}),
+		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
+	reader := bufio.NewReader(conn)
+	for _, hsInput := range handshakeStages {
+		_, err = conn.Write([]byte(hsInput))
+		if err != nil {
+			return err
+		}
+		respping, err := reader.ReadString('\n')
+		fmt.Println(respping)
+		if err != nil {
+			return err
+		}
 	}
-	if err != nil {
-		log.Fatal(err)
-	}
-	firstReplconf := TransformStringSliceToBulkString([]string{"REPLCONF", "listening-port", s.port})
-	_, err = conn.Write([]byte(firstReplconf))
-	if err != nil {
-		log.Fatal(err)
-	}
-	resp1, err := bufio.NewReader(conn).ReadString('\n')
-	fmt.Println(resp1)
-	if err != nil {
-		log.Fatal(err)
-	}
-	_, err = conn.Write([]byte("*3\r\n$8\r\nREPLCONF\r\n$4\r\ncapa\r\n$6\r\npsync2\r\n"))
-	if err != nil {
-		log.Fatal(err)
-	}
-	responseSecondStage, err := bufio.NewReader(conn).ReadString('\n')
-	fmt.Println(responseSecondStage)
-	thirdStage := TransformStringSliceToBulkString([]string{"PSYNC", "?", "-1"})
-	fmt.Println(thirdStage)
-
-	responseThirdStage, err := bufio.NewReader(conn).ReadString('\n')
-	fmt.Println(responseThirdStage)
-	_, err = conn.Write([]byte(thirdStage))
-	if err != nil {
-		log.Fatal(err)
-	}
+	return nil
 }
-func (s *Server) setup() (net.Listener, error) {
+func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
 	flag.Parse()
-	s.host = "0.0.0.0"
-	s.port = *portFlag
+	s.addr = fmt.Sprintf("%s:%s", "localhost", *portFlag)
 	if *replicationFlag {
 		s.handleReplication()
 	} else {
 		s.status = "master"
 	}
-	address := fmt.Sprintf("%s:%s", s.host, s.port)
-	fmt.Println(address)
-	return net.Listen("tcp", address)
+	return net.Listen("tcp", s.addr)
 
 }
 
@@ -103,11 +90,12 @@ var status = "master"
 func main() {
 
 	server := Server{}
-	l, err := server.setup()
+	l, err := server.start()
 	if err != nil {
-		fmt.Printf("Failed to bind to port %s", server.port)
+		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
 		os.Exit(1)
 	}
+	fmt.Println("Server started on ", server.addr)
 	sem := make(chan struct{}, 100)
 	for {
 		con, err := l.Accept()
@@ -124,22 +112,22 @@ func main() {
 }
 func handleClient(con net.Conn) {
 	defer con.Close()
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2048)
 	for {
 		i, err := con.Read(buf)
 		if err != nil {
 			fmt.Println("Error parsing input: ", err.Error())
-			return
+			continue
 		}
 		response, err := parse(buf[:i])
 		if err != nil {
 			fmt.Println("Error parsing input: ", err.Error())
-			return
+			continue
 		}
 		_, err = con.Write([]byte(response))
 		if err != nil {
 			fmt.Println("Error writing to connection: ", err.Error())
-			return
+			continue
 		}
 	}
 }
