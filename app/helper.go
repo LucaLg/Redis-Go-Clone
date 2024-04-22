@@ -14,3 +14,6 @@ func SliceToBulkString(inputs []string) string {
 	}
 	return response
 }
+func ByteToDigit(b byte) int {
+	return int(b - '0')
+}

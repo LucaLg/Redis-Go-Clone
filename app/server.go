@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -25,8 +26,8 @@ type Server struct {
 	status      string
 	replication Replication
 
-	// mutex sync.Mutex
-	// store map[string]Value
+	Store  *Store
+	Parser Parser
 }
 
 func (s *Server) handleReplication() {
@@ -89,7 +90,13 @@ var status = "master"
 
 func main() {
 
-	server := Server{}
+	store := &Store{
+		Mutex: sync.Mutex{},
+		Data:  make(map[string]Value),
+	}
+	server := Server{
+		Store: store,
+	}
 	l, err := server.start()
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
@@ -119,7 +126,12 @@ func (s *Server) handleClient(con net.Conn) {
 			log.Printf("Error reading from connection: %v", err)
 			continue
 		}
-		response, err := parse(buf[:i])
+		cmds, err := s.Parser.Parse(buf[:i], s)
+		if err != nil {
+			log.Printf("Error parsing: %v", err)
+			continue
+		}
+		response, err := s.handleCmds(cmds)
 		if err != nil {
 			log.Printf("Error parsing input: %v", err)
 			continue
@@ -129,5 +141,33 @@ func (s *Server) handleClient(con net.Conn) {
 			log.Printf("Error writing to connection: %v", err)
 			continue
 		}
+	}
+}
+
+func (s *Server) handleCmds(cmdArr []string) (string, error) {
+	switch strings.ToLower(cmdArr[0]) {
+	case "echo":
+		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
+	case "ping":
+		return "+PONG\r\n", nil
+	case "COMMAND":
+		return "+PONG\r\n", nil
+	case "set":
+		s.Store.handleSet(cmdArr)
+		return "+OK\r\n", nil
+	case "get":
+		result, err := s.Store.handleGet(cmdArr[1])
+		if err != nil {
+			return "", err
+		}
+		return result, nil
+	case "info":
+		return handleInfo(cmdArr), nil
+	case "replconf":
+		return "+OK\r\n", nil
+	case "psync":
+		return "+OK\r\n", nil
+	default:
+		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
 }

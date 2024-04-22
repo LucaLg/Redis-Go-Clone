@@ -1,97 +1,103 @@
 package main
 
 import (
-	"fmt"
+	"reflect"
 	"testing"
 	"time"
 )
 
 func TestParse(t *testing.T) {
+	server := &Server{
+		// Initialize other fields if necessary
+		Parser: Parser{},
+	}
 	t.Run("Ping command", func(t *testing.T) {
 		pingCommand := []byte("*1\r\n$4\r\nping\r\n")
-		gotPing, err := parse(pingCommand)
+		gotPing, err := server.Parser.Parse(pingCommand, server)
 		if err != nil {
 			t.Fatalf("Test failed")
 		}
-		wantPing := "+PONG\r\n"
-		if gotPing != wantPing {
-			t.Fatalf("Test failed because %s not equal to %s", gotPing, wantPing)
+		wantPing := []string{"ping"}
+		if !reflect.DeepEqual(gotPing, wantPing) {
+			t.Fatalf("Test failed because %v not equal to %v", gotPing, wantPing)
 		}
 	})
 
 	t.Run("Echo command", func(t *testing.T) {
 		echoCommand := []byte("*2\r\n$4\r\necho\r\n$5\r\nhello\r\n")
-		gotEcho, err := parse(echoCommand)
+		gotEcho, err := server.Parser.Parse(echoCommand, server)
 		if err != nil {
 			t.Fatalf("Test failed")
 		}
-		wantEcho := fmt.Sprintf("+%s\r\n", "hello")
-		if gotEcho != wantEcho {
+		wantEcho := []string{"echo", "hello"}
+		if !reflect.DeepEqual(wantEcho, gotEcho) {
 			t.Fatalf("Test failed because %s not equal to %s", gotEcho, wantEcho)
 		}
 	})
 
 	t.Run("Set command", func(t *testing.T) {
 		setCommand := []byte("*3\r\n$3\r\nset\r\n$5\r\nmykey\r\n$7\r\nmyvalue\r\n")
-		gotSet, err := parse(setCommand)
+		gotSet, err := server.Parser.Parse(setCommand, server)
 		if err != nil {
 			t.Fatalf("Test failed")
 		}
-		wantSet := "+OK\r\n"
-		if gotSet != wantSet {
-			t.Fatalf("Test failed because %s not equal to %s", gotSet, wantSet)
-		}
-	})
-
-	t.Run("SetArgs and GetPx commands", func(t *testing.T) {
-		setArgsCommand := []byte("*5\r\n$3\r\nset\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$2\r\nPX\r\n$3\r\n100\r\n")
-		gotSetArgs, err := parse(setArgsCommand)
-		if err != nil {
-			t.Fatalf("Test failed")
-		}
-		wantSetArgs := "+OK\r\n"
-		if gotSetArgs != wantSetArgs {
-			t.Fatalf("Test failed because %s not equal to %s", gotSetArgs, wantSetArgs)
-		}
-		time.Sleep(200 * time.Millisecond)
-		getPxCommand := []byte("*2\r\n$3\r\nget\r\n$3\r\nfoo\r\n")
-		gotGetPx, err := parse(getPxCommand)
-		if err != nil {
-			t.Fatalf("Test failed")
-		}
-		wantGetPx := "$-1\r\n"
-		if gotGetPx != wantGetPx {
-			t.Fatalf("Test failed because %s not equal to %s", gotGetPx, wantGetPx)
-		}
-	})
-
-	t.Run("Get command", func(t *testing.T) {
-		getCommand := []byte("*2\r\n$3\r\nget\r\n$5\r\nmykey\r\n")
-		gotGet, err := parse(getCommand)
-		if err != nil {
-			t.Fatalf("Test failed")
-		}
-		wantGet := "$7\r\nmyvalue\r\n"
-		if gotGet != wantGet {
-			t.Fatalf("Test failed because %s not equal to %s", gotGet, wantGet)
-		}
-	})
-	t.Run("Test info command ", func(t *testing.T) {
-		infoCmd := SliceToBulkString([]string{"info", "replication"})
-		role := fmt.Sprintf("role:%s", status)
-		replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
-		offset := fmt.Sprintf("master_repl_offset:%s", "0")
-		info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
-		want := StringToBulkString(info)
-		got, err := parse([]byte(infoCmd))
-		fmt.Println(got)
-		if err != nil {
-			t.Fatalf("Test failed")
-		}
-		if got != want {
-			t.Fatalf("Test failed because %s not equal to %s", got, want)
+		wantSet := []string{"set", "mykey", "myvalue"}
+		if !reflect.DeepEqual(gotSet, wantSet) {
+			t.Fatalf("Test failed because %v not equal to %v", gotSet, wantSet)
 		}
 
-	})
+		t.Run("SetArgs and GetPx commands", func(t *testing.T) {
+			setArgsCommand := []byte("*5\r\n$3\r\nset\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$2\r\nPX\r\n$3\r\n100\r\n")
+			gotSetArgs, err := server.Parser.Parse(setArgsCommand, server)
+			if err != nil {
+				t.Fatalf("Test failed")
+			}
+			wantSetArgs := []string{"set", "foo", "bar", "px", "100"}
+			if !reflect.DeepEqual(gotSetArgs, wantSetArgs) {
+				t.Fatalf("Test failed because %v not equal to %v", gotSetArgs, wantSetArgs)
+			}
+			time.Sleep(200 * time.Millisecond)
+			getPxCommand := []byte("*2\r\n$3\r\nget\r\n$3\r\nfoo\r\n")
+			gotGetPx, err := server.Parser.Parse(getPxCommand, server)
+			if err != nil {
+				t.Fatalf("Test failed")
+			}
+			wantGetPx := []string{"get", "foo"}
+			if !reflect.DeepEqual(gotGetPx, wantGetPx) {
+				t.Fatalf("Test failed because %v not equal to %v", gotGetPx, wantGetPx)
+			}
+		})
 
+		t.Run("Get command", func(t *testing.T) {
+			getCommand := []byte("*2\r\n$3\r\nget\r\n$5\r\nmykey\r\n")
+			gotGet, err := server.Parser.Parse(getCommand, server)
+			if err != nil {
+				t.Fatalf("Test failed")
+			}
+			wantGet := []string{"get", "mykey"}
+			if !reflect.DeepEqual(gotGet, wantGet) {
+				t.Fatalf("Test failed because %v not equal to %v", gotGet, wantGet)
+			}
+		})
+		t.Run("Parse length of word or array", func(t *testing.T) {
+
+		})
+		t.Run("Test info command ", func(t *testing.T) {
+			infoCmd := SliceToBulkString([]string{"info", "replication"})
+			// role := fmt.Sprintf("role:%s", status)
+			// replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
+			// offset := fmt.Sprintf("master_repl_offset:%s", "0")
+			// info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
+			want := []string{"info", "replication"}
+			got, err := server.Parser.Parse([]byte(infoCmd), server)
+			if err != nil {
+				t.Fatalf("Test failed")
+			}
+			if !reflect.DeepEqual(want, got) {
+				t.Fatalf("Test failed because %s not equal to %s", got, want)
+			}
+
+		})
+
+	})
 }
