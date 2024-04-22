@@ -166,7 +166,7 @@ func (s *Server) handleCmds(cmdArr []string) (string, error) {
 	case "replconf":
 		return "+OK\r\n", nil
 	case "psync":
-		return "+OK\r\n", nil
+		return "+FULLRESYNC 0\r\n", nil
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
