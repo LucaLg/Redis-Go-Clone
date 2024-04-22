@@ -131,20 +131,27 @@ func (s *Server) handleClient(con net.Conn) {
 			log.Printf("Error parsing: %v", err)
 			continue
 		}
-		response, err := s.handleCmds(cmds)
+		response, err := s.handleCmds(cmds, con)
 		if err != nil {
 			log.Printf("Error parsing input: %v", err)
 			continue
 		}
-		_, err = con.Write([]byte(response))
+		err = s.writeResponse(con, response)
 		if err != nil {
-			log.Printf("Error writing to connection: %v", err)
+			log.Printf("Error writing input: %v", err)
 			continue
 		}
 	}
 }
+func (s *Server) writeResponse(conn net.Conn, mess string) error {
+	_, err := conn.Write([]byte(mess))
+	if err != nil {
+		return err
+	}
+	return nil
+}
 
-func (s *Server) handleCmds(cmdArr []string) (string, error) {
+func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	switch strings.ToLower(cmdArr[0]) {
 	case "echo":
 		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
@@ -167,9 +174,14 @@ func (s *Server) handleCmds(cmdArr []string) (string, error) {
 		return "+OK\r\n", nil
 	case "psync":
 		id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-		fmt.Println(id)
-		return fmt.Sprintf("+FULLRESYNC %s 0\r\n", id), nil
+		fullResync := fmt.Sprintf("+FULLRESYNC %s 0\r\n", id)
+		s.writeResponse(conn, fullResync)
+		return s.handleRDBFile(), nil
 	default:
 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
 	}
+}
+func (s *Server) handleRDBFile() string {
+	emptyFileHex := "524544495330303131fa0972656469732d76657205372e322e30fa0a72656469732d62697473c040fa056374696d65c26d08bc65fa08757365642d6d656dc2b0c41000fa08616f662d62617365c000fff06e3bfec0ff5aa2"
+	return fmt.Sprintf("%d\r\n%s", len(emptyFileHex), emptyFileHex)
 }
