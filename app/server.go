@@ -105,28 +105,28 @@ func main() {
 		}
 		sem <- struct{}{}
 		go func(con net.Conn) {
-			handleClient(con)
+			server.handleClient(con)
 			<-sem
 		}(con)
 	}
 }
-func handleClient(con net.Conn) {
+func (s *Server) handleClient(con net.Conn) {
 	defer con.Close()
 	buf := make([]byte, 2048)
 	for {
 		i, err := con.Read(buf)
 		if err != nil {
-			fmt.Println("Error parsing input: ", err.Error())
+			log.Printf("Error reading from connection: %v", err)
 			continue
 		}
 		response, err := parse(buf[:i])
 		if err != nil {
-			fmt.Println("Error parsing input: ", err.Error())
+			log.Printf("Error parsing input: %v", err)
 			continue
 		}
 		_, err = con.Write([]byte(response))
 		if err != nil {
-			fmt.Println("Error writing to connection: ", err.Error())
+			log.Printf("Error writing to connection: %v", err)
 			continue
 		}
 	}
