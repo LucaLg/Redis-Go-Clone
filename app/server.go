@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"log"
@@ -182,6 +183,10 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	}
 }
 func (s *Server) handleRDBFile() string {
-	emptyFileHex := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
-	return fmt.Sprintf("$%d\r\n%s", len(emptyFileHex), emptyFileHex)
+	emptyFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
+	emptyFile, err := base64.RawStdEncoding.DecodeString(emptyFileBase64)
+	if err != nil {
+		fmt.Errorf("An error occured encoding the rdbfile", err)
+	}
+	return fmt.Sprintf("$%d\r\n%s", len(emptyFile), emptyFile)
 }
