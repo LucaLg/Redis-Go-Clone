@@ -176,7 +176,6 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case "set":
 		s.handlePropagation(cmdArr)
 		s.Store.handleSet(cmdArr)
-		//TODO handlePropagation
 		return "+OK\r\n", nil
 	case "get":
 		s.handlePropagation(cmdArr)
