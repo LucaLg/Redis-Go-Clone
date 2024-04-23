@@ -29,6 +29,8 @@ type Server struct {
 
 	Store  *Store
 	Parser Parser
+
+	repConns []net.Conn
 }
 
 func (s *Server) handleReplication() {
@@ -106,7 +108,7 @@ func main() {
 	fmt.Println("Server started on ", server.addr)
 	sem := make(chan struct{}, 100)
 	for {
-		con, err := l.Accept()
+		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			continue
@@ -115,32 +117,43 @@ func main() {
 		go func(con net.Conn) {
 			server.handleClient(con)
 			<-sem
-		}(con)
+		}(conn)
 	}
 }
-func (s *Server) handleClient(con net.Conn) {
-	defer con.Close()
+func (s *Server) handleClient(conn net.Conn) {
+	defer conn.Close()
 	buf := make([]byte, 2048)
 	for {
-		i, err := con.Read(buf)
+		i, err := conn.Read(buf)
 		if err != nil {
 			log.Printf("Error reading from connection: %v", err)
 			continue
 		}
 		cmds, err := s.Parser.Parse(buf[:i], s)
+		fmt.Println(cmds)
 		if err != nil {
 			log.Printf("Error parsing: %v", err)
 			continue
 		}
-		response, err := s.handleCmds(cmds, con)
+		response, err := s.handleCmds(cmds, conn)
 		if err != nil {
 			log.Printf("Error parsing input: %v", err)
 			continue
 		}
-		err = s.writeResponse(con, response)
-		if err != nil {
-			log.Printf("Error writing input: %v", err)
-			continue
+
+		var answer = true
+		// if s.status == "slave" {
+		// 	masterAdd := fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)
+		// 	if masterAdd == conn.LocalAddr().String() {
+		// 		answer = false
+		// 	}
+		// }
+		if answer {
+			err = s.writeResponse(conn, response)
+			if err != nil {
+				log.Printf("Error writing input: %v", err)
+				continue
+			}
 		}
 	}
 }
@@ -158,12 +171,15 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
 	case "ping":
 		return "+PONG\r\n", nil
-	case "COMMAND":
+	case "command":
 		return "+PONG\r\n", nil
 	case "set":
+		s.handlePropagation(cmdArr)
 		s.Store.handleSet(cmdArr)
+		//TODO handlePropagation
 		return "+OK\r\n", nil
 	case "get":
+		s.handlePropagation(cmdArr)
 		result, err := s.Store.handleGet(cmdArr[1])
 		if err != nil {
 			return "", err
@@ -177,16 +193,29 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 		fullResync := fmt.Sprintf("+FULLRESYNC %s 0\r\n", id)
 		s.writeResponse(conn, fullResync)
+		s.repConns = append(s.repConns, conn)
+		fmt.Println(s.repConns)
 		return s.handleRDBFile(), nil
 	default:
-		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
+		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}
+}
+func (s *Server) handlePropagation(cmdArr []string) {
+	for _, conn := range s.repConns {
+		cmd := SliceToBulkString(cmdArr)
+		fmt.Print(cmd)
+		err := s.writeResponse(conn, cmd)
+		if err != nil {
+			fmt.Errorf("An error occurred while sending propagations %v", err)
+		}
+	}
+
 }
 func (s *Server) handleRDBFile() string {
 	emptyFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
 	emptyFile, err := base64.RawStdEncoding.DecodeString(emptyFileBase64)
 	if err != nil {
-		fmt.Errorf("An error occured encoding the rdbfile", err)
+		fmt.Errorf("An error occured encoding the rdbfile %v", err)
 	}
 	return fmt.Sprintf("$%d\r\n%s", len(emptyFile), emptyFile)
 }
