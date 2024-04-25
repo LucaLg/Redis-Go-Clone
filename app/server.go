@@ -87,7 +87,7 @@ func (s *Server) handshake() error {
 				}
 				continue
 			}
-			fmt.Println("Handshake input", string(buff[:i]))
+			// fmt.Println("Handshake input", string(buff[:i]))
 			cmds, err := s.Parser.parseReplication(buff[:i], s)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)

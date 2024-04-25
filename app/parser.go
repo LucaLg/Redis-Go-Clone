@@ -52,6 +52,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	}
 	inputs = append(inputs, input[lastStartIndex+1:])
 	commandsSlices := make([][]string, 0)
+	fmt.Println(string(inputs[0]))
 	for _, input := range inputs {
 		cmds, err := s.Parser.Parse(input, s)
 		if err != nil {
