@@ -88,16 +88,18 @@ func (s *Server) handshake() error {
 				continue
 			}
 			fmt.Println("Handshake input", string(buff[:i]))
-			cmds, err := s.Parser.Parse(buff[:i], s)
+			cmds, err := s.Parser.parseReplication(buff[:i], s)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
 			}
 			fmt.Println("Read ", cmds)
-			_, err = s.handleCmds(cmds, conn)
-			if err != nil {
-				log.Printf("Error occured handleCmds in replication")
-				continue
+			for _, cmd := range cmds {
+				_, err = s.handleCmds(cmd, conn)
+				if err != nil {
+					log.Printf("Error occured handleCmds in replication")
+					continue
+				}
 			}
 		}
 	}(conn, buff, index)

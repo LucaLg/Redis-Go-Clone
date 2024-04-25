@@ -40,6 +40,27 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	}
 	return cmds, nil
 }
+func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
+	inputs := make([][]byte, 0)
+	for i := 0; i < len(input); i++ {
+		if input[i] == '*' {
+			// Add a new byte slice to inputs
+			inputs = append(inputs, make([]byte, 0))
+		} else {
+			// Append the current byte to the last byte slice in inputs
+			inputs[len(inputs)-1] = append(inputs[len(inputs)-1], input[i])
+		}
+	}
+	commandsSlices := make([][]string, 0)
+	for _, input := range inputs {
+		cmds, err := s.Parser.Parse(input, s)
+		if err != nil {
+			return nil, fmt.Errorf("Couldnt parse all replication  inputs")
+		}
+		commandsSlices = append(commandsSlices, cmds)
+	}
+	return commandsSlices, nil
+}
 
 // func (p *Parser) handleCmds(cmdArr []string, s *Server) (string, error) {
 
