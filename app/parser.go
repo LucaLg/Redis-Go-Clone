@@ -8,23 +8,29 @@ import (
 type Parser struct {
 }
 
-func parseLength(input []byte, index int) (int, int) {
+func parseLength(input []byte, index int) (int, int, error) {
+	if string(input[0]) != "$" && string(input[0]) != "*" {
+		return -1, -1, fmt.Errorf("Isnt a valid input to parse")
+	}
 	var arrayLength int
 	var i int = index + 1
 	for input[i] != '\r' {
 		arrayLength = (arrayLength * 10) + ByteToDigit(input[i])
 		i++
 	}
-	return arrayLength, i + 2
+	return arrayLength, i + 2, nil
 }
 
 func parseWords(input []byte, startIndex int) (string, int) {
-	wordLength, index := parseLength(input, startIndex)
+	wordLength, index, err := parseLength(input, startIndex)
+	if err != nil {
+		return "", -1
+	}
 	return string(input[index : index+wordLength]), wordLength + index + 2
 }
 func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
-	arrayLength, index := parseLength(input, 0)
-	if arrayLength < 0 {
+	arrayLength, index, err := parseLength(input, 0)
+	if arrayLength < 0 || err != nil {
 		return nil, fmt.Errorf("the input coulndt be parsed %s", string(input))
 	}
 	fmt.Println("Array length of the input", arrayLength)
