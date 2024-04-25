@@ -42,15 +42,15 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 }
 func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	inputs := make([][]byte, 0)
+	var lastStartIndex = 0
 	for i := 0; i < len(input); i++ {
-		if input[i] == '*' {
+		if input[i] == '*' && i != 0 {
 			// Add a new byte slice to inputs
-			inputs = append(inputs, make([]byte, 0))
-		} else {
-			// Append the current byte to the last byte slice in inputs
-			inputs[len(inputs)-1] = append(inputs[len(inputs)-1], input[i])
+			lastStartIndex = i
+			inputs = append(inputs, input[:i])
 		}
 	}
+	inputs = append(inputs, input[lastStartIndex+1:])
 	commandsSlices := make([][]string, 0)
 	for _, input := range inputs {
 		cmds, err := s.Parser.Parse(input, s)
