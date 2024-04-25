@@ -33,7 +33,6 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	if arrayLength < 0 || err != nil {
 		return nil, fmt.Errorf("the input coulndt be parsed %s", string(input))
 	}
-	fmt.Println("Array length of the input", arrayLength)
 	cmds := make([]string, arrayLength)
 	for i := 0; i < arrayLength; i++ {
 		cmds[i], index = parseWords(input, index)
