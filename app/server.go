@@ -142,12 +142,12 @@ func (s *Server) handleClient(conn net.Conn) {
 		}
 
 		var answer = true
-		// if s.status == "slave" {
-		// 	masterAdd := fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)
-		// 	if masterAdd == conn.LocalAddr().String() {
-		// 		answer = false
-		// 	}
-		// }
+		if s.status == "slave" {
+			masterAdd := fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)
+			if masterAdd == conn.LocalAddr().String() {
+				answer = false
+			}
+		}
 		if answer {
 			err = s.writeResponse(conn, response)
 			if err != nil {
