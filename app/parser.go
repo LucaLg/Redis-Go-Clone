@@ -50,7 +50,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 			inputs = append(inputs, input[:i])
 		}
 	}
-	inputs = append(inputs, input[lastStartIndex+1:])
+	inputs = append(inputs, input[lastStartIndex:])
 	commandsSlices := make([][]string, 0)
 	fmt.Println(string(inputs[0]))
 	for _, input := range inputs {
