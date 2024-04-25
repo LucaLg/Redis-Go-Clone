@@ -56,7 +56,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	for _, input := range inputs {
 		cmds, err := s.Parser.Parse(input, s)
 		if err != nil {
-			return nil, fmt.Errorf("Couldnt parse all replication  inputs")
+			return nil, fmt.Errorf(err.Error())
 		}
 		commandsSlices = append(commandsSlices, cmds)
 	}
