@@ -34,6 +34,7 @@ type Server struct {
 }
 
 func (s *Server) handleReplication() {
+	s.status = "slave"
 	if len(flag.Args()) != 2 {
 		fmt.Println("No Master IP or Port given ")
 		return
