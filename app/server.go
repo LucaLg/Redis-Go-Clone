@@ -169,7 +169,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 					log.Printf("Error occured handleCmds in replication")
 					continue
 				}
-				if conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
+				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
 					err = s.writeResponse(conn, response)
 					if err != nil {
 						log.Printf("Error writing a response", err)
