@@ -87,6 +87,7 @@ func (s *Server) handleReplicationLoop(conn net.Conn, handshakeStages []string) 
 				}
 				continue
 			}
+			handshakeIndex++
 		} else {
 
 			i, err := conn.Read(buf)
