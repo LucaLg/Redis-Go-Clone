@@ -56,7 +56,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	inputs := make([][]byte, 0)
 	var lastStartIndex = 0
 	for i := 0; i < len(input); i++ {
-		if input[i] == '*' && i != 0 && isValidCommandStart(input, i) {
+		if i != 0 && isValidCommandStart(input, i) {
 			inputs = append(inputs, input[lastStartIndex:i])
 			lastStartIndex = i
 		}
@@ -75,18 +75,5 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	return commandsSlices, nil
 }
 func isValidCommandStart(input []byte, i int) bool {
-	return i+1 < len(input) && input[i+1] != '\r'
-}
-func (p *Parser) countCommands(input []byte) (int, error) {
-	if input[0] != '*' {
-		return -1, fmt.Errorf("received not a valid input")
-	}
-	var cmdCount = 1
-	for i := 0; i < len(input); i++ {
-		if input[i] == '*' && i != 0 && i+1 < len(input) && input[i+1] != '\r' {
-			cmdCount++
-		}
-	}
-
-	return cmdCount, nil
+	return input[i] == '*' && i+1 < len(input) && input[i+1] != '\r'
 }
