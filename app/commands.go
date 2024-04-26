@@ -34,18 +34,15 @@ func (s *Server) info(cmdArr []string) string {
 	return ""
 }
 func (s *Server) replconf(cmdArr []string) (string, error) {
-	// return *3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n
-	if len(cmdArr) == 1 {
-		return "+OK\r\n", nil
-	} else {
+	if len(cmdArr) > 1 {
 		switch cmdArr[1] {
 		case "getack":
 			return "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n", nil
 		default:
-			return "", nil
+			return "+OK\r\n", nil
 		}
 	}
-	//handle that the response is written to the master from replication only for replconf
+	return "+OK\r\n", nil
 }
 func (s *Server) psync(cmdArr []string, conn net.Conn) (string, error) {
 	id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"

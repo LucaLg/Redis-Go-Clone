@@ -67,9 +67,8 @@ func (s *Server) handshake() error {
 		if err != nil {
 			return err
 		}
-		response, err := conn.Read(buf[:i])
-		// respping, err := reader.ReadString('\n')
-		fmt.Println(response)
+		_, err = conn.Read(buf[:i])
+		fmt.Println(string(buf[:i]))
 		if err != nil {
 			return err
 		}
@@ -169,7 +168,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 					log.Printf("Error occured handleCmds in replication")
 					continue
 				}
-				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
+				if conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
 					err = s.writeResponse(conn, response)
 					if err != nil {
 						log.Printf("Error writing a response", err)
