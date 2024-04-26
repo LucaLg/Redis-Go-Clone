@@ -48,7 +48,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 			// Add a new byte slice to inputs
 			lastStartIndex = i
 			inputs = append(inputs, input[:i])
-			fmt.Println("New Input added ", inputs)
+			fmt.Println("New Input added ", string(input[:i]))
 		}
 	}
 	inputs = append(inputs, input[lastStartIndex:])
