@@ -45,17 +45,13 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	var lastStartIndex = 0
 	for i := 0; i < len(input); i++ {
 		if input[i] == '*' && i != 0 {
-			// Add a new byte slice to inputs
-			// "*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n"
 			inputs = append(inputs, input[lastStartIndex:i])
-			fmt.Println("New Input added ", string(input[lastStartIndex:i]))
 			lastStartIndex = i
 		}
 	}
 	inputs = append(inputs, input[lastStartIndex:])
 	//the first input got added twice but the second one wasnt added
 	commandsSlices := make([][]string, 0)
-	fmt.Println(string(inputs[0]))
 	for _, input := range inputs {
 		cmds, err := s.Parser.Parse(input, s)
 		if err != nil {
@@ -63,6 +59,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 		}
 		commandsSlices = append(commandsSlices, cmds)
 	}
+	fmt.Println(commandsSlices)
 	return commandsSlices, nil
 }
 
