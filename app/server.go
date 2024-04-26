@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
@@ -30,6 +29,7 @@ type Server struct {
 	Store  *Store
 	Parser Parser
 
+	consMu   sync.Mutex
 	repConns []*net.Conn
 }
 
@@ -47,7 +47,6 @@ func (s *Server) handleReplication() {
 		fmt.Println("An error occured during the handshake")
 		log.Fatalf(err.Error())
 	}
-	status = "slave"
 
 }
 func (s *Server) handshake() error {
@@ -61,52 +60,23 @@ func (s *Server) handshake() error {
 		SliceToBulkString([]string{"REPLCONF", "listening-port", strings.Split(s.addr, ":")[1]}),
 		SliceToBulkString([]string{"REPLCONF", "capa", "psync2"}),
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
-	// reader := bufio.NewReader(conn)
-	// handleConnection
-	buff := make([]byte, 2048)
+	buf := make([]byte, 2048)
 	for _, hsInput := range handshakeStages {
 		i, err := conn.Write([]byte(hsInput))
 		if err != nil {
 			return err
 		}
-		response, err := conn.Read(buff[:i])
+		response, err := conn.Read(buf[:i])
 		// respping, err := reader.ReadString('\n')
 		fmt.Println(response)
 		if err != nil {
 			return err
 		}
 	}
-	sem := make(chan struct{}, 100)
-	sem <- struct{}{}
+	//Keep up established connection
 	go func(net.Conn, []byte) {
-		s.handleClient(conn, buff)
-		<-sem
-	}(conn, buff)
-	// go func(net.Conn, []byte) {
-	// 	for {
-	// 		i, err := conn.Read(buff)
-	// 		if err != nil {
-	// 			if err == io.EOF {
-	// 				log.Printf("Connection to %s closed", conn.RemoteAddr().String())
-	// 				break
-	// 			}
-	// 			continue
-	// 		}
-	// 		cmds, err := s.Parser.parseReplication(buff[:i], s)
-	// 		if err != nil {
-	// 			log.Printf("Error parsing: %v", err)
-	// 			continue
-	// 		}
-	// 		fmt.Println("Read ", cmds)
-	// 		for _, cmd := range cmds {
-	// 			_, err = s.handleCmds(cmd, conn)
-	// 			if err != nil {
-	// 				log.Printf("Error occured handleCmds in replication")
-	// 				continue
-	// 			}
-	// 		}
-	// 	}
-	// }(conn, buff)
+		s.handleClient(conn, buf)
+	}(conn, buf)
 	return nil
 }
 func (s *Server) start() (net.Listener, error) {
@@ -122,8 +92,6 @@ func (s *Server) start() (net.Listener, error) {
 	return net.Listen("tcp", s.addr)
 
 }
-
-var status = "master"
 
 func main() {
 
@@ -158,7 +126,6 @@ func main() {
 }
 func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	defer conn.Close()
-	// buf := make([]byte, 2048)
 	for {
 		i, err := conn.Read(buf)
 		if err != nil {
@@ -225,32 +192,21 @@ func (s *Server) writeResponse(conn net.Conn, mess string) error {
 func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	switch strings.ToLower(cmdArr[0]) {
 	case "echo":
-		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
+		return s.echo(cmdArr, conn), nil
 	case "ping":
 		return "+PONG\r\n", nil
 	case "command":
 		return "+PONG\r\n", nil
 	case "set":
-		s.handlePropagation(cmdArr)
-		s.Store.handleSet(cmdArr)
-		return "+OK\r\n", nil
+		return s.set(cmdArr, conn)
 	case "get":
-		s.handlePropagation(cmdArr)
-		result, err := s.Store.handleGet(cmdArr[1])
-		if err != nil {
-			return "", err
-		}
-		return result, nil
+		return s.get(cmdArr, conn)
 	case "info":
-		return handleInfo(cmdArr), nil
+		return s.info(cmdArr), nil
 	case "replconf":
-		return "+OK\r\n", nil
+		return s.replconf(cmdArr)
 	case "psync":
-		id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
-		fullResync := fmt.Sprintf("+FULLRESYNC %s 0\r\n", id)
-		s.writeResponse(conn, fullResync)
-		s.repConns = append(s.repConns, &conn)
-		return s.handleRDBFile(), nil
+		return s.psync(cmdArr, conn)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}
@@ -266,12 +222,4 @@ func (s *Server) handlePropagation(cmdArr []string) {
 		}
 	}
 
-}
-func (s *Server) handleRDBFile() string {
-	emptyFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="
-	emptyFile, err := base64.RawStdEncoding.DecodeString(emptyFileBase64)
-	if err != nil {
-		fmt.Errorf("An error occured encoding the rdbfile %v", err)
-	}
-	return fmt.Sprintf("$%d\r\n%s", len(emptyFile), emptyFile)
 }

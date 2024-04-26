@@ -66,15 +66,3 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	}
 	return commandsSlices, nil
 }
-
-func handleInfo(cmdArr []string) string {
-	if cmdArr[1] == "replication" {
-		role := fmt.Sprintf("role:%s", status)
-		replid := fmt.Sprintf("master_replid:%s", "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb")
-		offset := fmt.Sprintf("master_repl_offset:%s", "0")
-		info := fmt.Sprintf("%s\n%s\n%s", role, replid, offset)
-		res := StringToBulkString(info)
-		return res
-	}
-	return ""
-}
