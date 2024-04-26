@@ -34,6 +34,7 @@ func (s *Server) info(cmdArr []string) string {
 	return ""
 }
 func (s *Server) replconf(cmdArr []string) (string, error) {
+	fmt.Println("Replconf reached !!!!!!!")
 	if len(cmdArr) > 1 {
 		switch cmdArr[1] {
 		case "getack":

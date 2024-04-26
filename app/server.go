@@ -178,6 +178,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 					continue
 				}
 				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
+					fmt.Println("Response written to replconf", response)
 					err = s.writeResponse(conn, response)
 					if err != nil {
 						log.Printf("Error writing a response: %v", err)
