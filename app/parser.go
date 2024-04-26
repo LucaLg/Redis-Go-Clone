@@ -48,9 +48,11 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 			// Add a new byte slice to inputs
 			lastStartIndex = i
 			inputs = append(inputs, input[:i])
+			fmt.Println("New Input added ", inputs)
 		}
 	}
 	inputs = append(inputs, input[lastStartIndex:])
+	//the first input got added twice but the second one wasnt added
 	commandsSlices := make([][]string, 0)
 	fmt.Println(string(inputs[0]))
 	for _, input := range inputs {
@@ -62,65 +64,6 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	}
 	return commandsSlices, nil
 }
-
-// func (p *Parser) handleCmds(cmdArr []string, s *Server) (string, error) {
-
-// 	switch strings.ToLower(cmdArr[0]) {
-// 	case "echo":
-// 		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
-// 	case "ping":
-// 		return "+PONG\r\n", nil
-// 	case "COMMAND":
-// 		return "+PONG\r\n", nil
-// 	case "set":
-// 		s.Store.handleSet(cmdArr)
-// 		return "+OK\r\n", nil
-// 	case "get":
-// 		return s.Store.handleGet(cmdArr[1])
-// 	case "info":
-// 		return handleInfo(cmdArr), nil
-// 	case "replconf":
-// 		return "+OK\r\n", nil
-// 	case "psync":
-// 		return "+OK\r\n", nil
-// 	default:
-// 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
-// 	}
-// }
-
-// func parse(input []byte) (string, error) {
-// 	arrayLength, index := parseLength(input, 0)
-// 	cmds := make([]string, arrayLength)
-// 	for i := 0; i < arrayLength; i++ {
-// 		cmds[i], index = parseWords(input, index)
-// 		cmds[i] = strings.ToLower(cmds[i])
-// 	}
-// 	return handleCmds(cmds)
-// }
-
-// func handleCmds(cmdArr []string) (string, error) {
-// 	switch strings.ToLower(cmdArr[0]) {
-// 	case "echo":
-// 		return fmt.Sprintf("+%s\r\n", cmdArr[1]), nil
-// 	case "ping":
-// 		return "+PONG\r\n", nil
-// 	case "COMMAND":
-// 		return "+PONG\r\n", nil
-// 	case "set":
-// 		handleSet(cmdArr)
-// 		return "+OK\r\n", nil
-// 	case "get":
-// 		return handleGet(cmdArr[1]), nil
-// 	case "info":
-// 		return handleInfo(cmdArr), nil
-// 	case "replconf":
-// 		return "+OK\r\n", nil
-// 	case "psync":
-// 		return "+OK\r\n", nil
-// 	default:
-// 		return "", fmt.Errorf("Unknown command: %s", cmdArr[0])
-// 	}
-// }
 
 func handleInfo(cmdArr []string) string {
 	if cmdArr[1] == "replication" {
