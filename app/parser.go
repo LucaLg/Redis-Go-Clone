@@ -14,19 +14,22 @@ func parseLength(input []byte, index int) (int, int, error) {
 	}
 	var arrayLength int
 	var i int = index + 1
-	for input[i] != '\r' && i < len(input) {
+	for i < len(input) && input[i] != '\r' {
 		arrayLength = (arrayLength * 10) + ByteToDigit(input[i])
 		i++
 	}
 	return arrayLength, i + 2, nil
 }
 
-func parseWords(input []byte, startIndex int) (string, int) {
+func parseWords(input []byte, startIndex int) (string, int, error) {
 	wordLength, index, err := parseLength(input, startIndex)
 	if err != nil {
-		return "", -1
+		return "", -1, err
 	}
-	return string(input[index : index+wordLength]), wordLength + index + 2
+	if index+wordLength > len(input) {
+		return "", -1, fmt.Errorf("index out of bounce while reading word ")
+	}
+	return string(input[index : index+wordLength]), wordLength + index + 2, nil
 }
 func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	arrayLength, index, err := parseLength(input, 0)
@@ -35,7 +38,10 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	}
 	cmds := make([]string, arrayLength)
 	for i := 0; i < arrayLength; i++ {
-		cmds[i], index = parseWords(input, index)
+		cmds[i], index, err = parseWords(input, index)
+		if err != nil {
+			return nil, err
+		}
 		cmds[i] = strings.ToLower(cmds[i])
 	}
 	return cmds, nil
@@ -50,7 +56,7 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	inputs := make([][]byte, 0)
 	var lastStartIndex = 0
 	for i := 0; i < len(input); i++ {
-		if input[i] == '*' && i != 0 {
+		if input[i] == '*' && i != 0 && isValidCommandStart(input, i) {
 			inputs = append(inputs, input[lastStartIndex:i])
 			lastStartIndex = i
 		}
@@ -67,4 +73,20 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 		}
 	}
 	return commandsSlices, nil
+}
+func isValidCommandStart(input []byte, i int) bool {
+	return i+1 < len(input) && input[i+1] != '\r'
+}
+func (p *Parser) countCommands(input []byte) (int, error) {
+	if input[0] != '*' {
+		return -1, fmt.Errorf("received not a valid input")
+	}
+	var cmdCount = 1
+	for i := 0; i < len(input); i++ {
+		if input[i] == '*' && i != 0 && i+1 < len(input) && input[i+1] != '\r' {
+			cmdCount++
+		}
+	}
+
+	return cmdCount, nil
 }

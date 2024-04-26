@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -101,17 +100,45 @@ func TestParse(t *testing.T) {
 		})
 		t.Run("Test replication parser", func(t *testing.T) {
 			input := []byte("*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n")
+			input2 := []byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")
 			got, err := server.Parser.parseReplication(input, server)
+			if err != nil {
+				t.Fatalf("Test failed coulndt parse input")
+			}
+			got2, err := server.Parser.parseReplication(input2, server)
 			if err != nil {
 				t.Fatalf("Test failed coulndt parse input")
 			}
 			cmdOne := []string{"set", "foo", "1"}
 			cmdTwo := []string{"set", "bar", "1"}
 			want := [][]string{cmdOne, cmdTwo}
-			fmt.Println("Got", got)
-			fmt.Println("Want", want)
+			want2 := [][]string{{"replconf", "getack", "*"}}
 			if !reflect.DeepEqual(want, got) {
 				t.Fatalf("replication parsed false got %s and wanted %s", got, want)
+			}
+
+			if !reflect.DeepEqual(want2, got2) {
+				t.Fatalf("replication parsed false got %s and wanted %s", got2, want2)
+			}
+
+		})
+		t.Run("Test if multiple commands are processed the right way", func(t *testing.T) {
+
+			input1 := []byte("*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n")
+			input2 := []byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")
+			got1, err := server.Parser.countCommands(input1)
+			if err != nil {
+				t.Fatalf("Test failed coulndt parse input")
+			}
+			got2, err := server.Parser.countCommands(input2)
+			if err != nil {
+				t.Fatalf("Test failed coulndt parse input")
+			}
+			if got1 != 2 {
+				t.Fatalf(" Got %d but wanted 2", got1)
+			}
+			if got2 != 1 {
+				t.Fatalf(" Got %d but wanted 2", got2)
 			}
 
 		})
