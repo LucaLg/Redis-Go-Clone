@@ -46,9 +46,10 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	for i := 0; i < len(input); i++ {
 		if input[i] == '*' && i != 0 {
 			// Add a new byte slice to inputs
+			// "*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n"
+			inputs = append(inputs, input[lastStartIndex:i])
+			fmt.Println("New Input added ", string(input[lastStartIndex:i]))
 			lastStartIndex = i
-			inputs = append(inputs, input[:i])
-			fmt.Println("New Input added ", string(input[:i]))
 		}
 	}
 	inputs = append(inputs, input[lastStartIndex:])
