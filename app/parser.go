@@ -14,7 +14,7 @@ func parseLength(input []byte, index int) (int, int, error) {
 	}
 	var arrayLength int
 	var i int = index + 1
-	for input[i] != '\r' {
+	for input[i] != '\r' && i < len(input) {
 		arrayLength = (arrayLength * 10) + ByteToDigit(input[i])
 		i++
 	}
