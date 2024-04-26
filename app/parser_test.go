@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -95,6 +96,22 @@ func TestParse(t *testing.T) {
 			}
 			if !reflect.DeepEqual(want, got) {
 				t.Fatalf("Test failed because %s not equal to %s", got, want)
+			}
+
+		})
+		t.Run("Test replication parser", func(t *testing.T) {
+			input := []byte("*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n")
+			got, err := server.Parser.parseReplication(input, server)
+			if err != nil {
+				t.Fatalf("Test failed coulndt parse input")
+			}
+			cmdOne := []string{"set", "foo", "1"}
+			cmdTwo := []string{"set", "bar", "1"}
+			want := [][]string{cmdOne, cmdTwo}
+			fmt.Println("Got", got)
+			fmt.Println("Want", want)
+			if !reflect.DeepEqual(want, got) {
+				t.Fatalf("replication parsed false got %s and wanted %s", got, want)
 			}
 
 		})
