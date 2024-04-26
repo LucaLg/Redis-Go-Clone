@@ -208,6 +208,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.echo(cmdArr, conn), nil
 	case "ping":
 		return "+PONG\r\n", nil
+	case "+ok":
+		return "", nil
 	case "command":
 		return "+PONG\r\n", nil
 	case "set":
@@ -216,6 +218,9 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.get(cmdArr, conn)
 	case "info":
 		return s.info(cmdArr), nil
+	case "test":
+		s.handlePropagation([]string{"replconf", "getack", "*"})
+		return "+PONG\r\n", nil
 	case "replconf":
 		return s.replconf(cmdArr)
 	case "psync":
