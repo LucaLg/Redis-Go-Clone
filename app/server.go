@@ -61,22 +61,71 @@ func (s *Server) handshake() error {
 		SliceToBulkString([]string{"REPLCONF", "listening-port", strings.Split(s.addr, ":")[1]}),
 		SliceToBulkString([]string{"REPLCONF", "capa", "psync2"}),
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
+
+	go s.handleReplicationLoop(conn, handshakeStages)
+
+	return nil
+}
+func (s *Server) handleReplicationLoop(conn net.Conn, handshakeStages []string) error {
+	defer conn.Close()
 	buf := make([]byte, 2048)
-	for _, hsInput := range handshakeStages {
-		i, err := conn.Write([]byte(hsInput))
-		if err != nil {
-			return err
-		}
-		_, err = conn.Read(buf[:i])
-		fmt.Println(string(buf[:i]))
-		if err != nil {
-			return err
+	var handshakeIndex = 0
+	for {
+		if handshakeIndex < len(handshakeStages) {
+			_, err := conn.Write([]byte(handshakeStages[handshakeIndex]))
+			if err != nil {
+				return err
+			}
+			_, err = conn.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					log.Printf("Connection closed by client: %v", conn.RemoteAddr())
+					// Exit the loop on error or when the connection is closed
+					break
+				} else {
+					log.Printf("Error reading from connection: %v", err)
+				}
+				continue
+			}
+		} else {
+
+			i, err := conn.Read(buf)
+			if err != nil {
+				if err == io.EOF {
+					log.Printf("Connection closed by client: %v", conn.RemoteAddr())
+					// Exit the loop on error or when the connection is closed
+					break
+				} else {
+					log.Printf("Error reading from connection: %v", err)
+				}
+				continue
+			}
+			cmds, err := s.Parser.parseReplication(buf[:i], s)
+			if err != nil {
+				log.Printf("Error parsing: %v", err)
+				continue
+			}
+			fmt.Println("Read ", cmds)
+
+			for _, cmd := range cmds {
+				if len(cmd) == 0 {
+					break
+				}
+				response, err := s.handleCmds(cmd, conn)
+				if err != nil {
+					log.Printf("Error occurred handleCmds in replication: %v", err)
+					continue
+				}
+				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
+					err = s.writeResponse(conn, response)
+					if err != nil {
+						log.Printf("Error writing a response: %v", err)
+						continue
+					}
+				}
+			}
 		}
 	}
-	//Keep up established connection
-	go func(net.Conn, []byte) {
-		s.handleClient(conn, buf)
-	}(conn, buf)
 	return nil
 }
 func (s *Server) start() (net.Listener, error) {
@@ -165,13 +214,13 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			for _, cmd := range cmds {
 				response, err := s.handleCmds(cmd, conn)
 				if err != nil {
-					log.Printf("Error occured handleCmds in replication")
+					log.Printf("Error occurred handleCmds in replication: %v", err)
 					continue
 				}
 				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
 					err = s.writeResponse(conn, response)
 					if err != nil {
-						log.Printf("Error writing a response", err)
+						log.Printf("Error writing a response: %v", err)
 						continue
 					}
 				}
@@ -190,6 +239,9 @@ func (s *Server) writeResponse(conn net.Conn, mess string) error {
 }
 
 func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
+	if len(cmdArr) == 0 {
+		return "", fmt.Errorf("command array is empty")
+	}
 	switch strings.ToLower(cmdArr[0]) {
 	case "echo":
 		return s.echo(cmdArr, conn), nil
@@ -218,7 +270,7 @@ func (s *Server) handlePropagation(cmdArr []string) {
 
 		err := s.writeResponse(*conn, cmd)
 		if err != nil {
-			fmt.Errorf("An error occurred while sending propagations %v", err)
+			log.Printf("An error occurred while sending propagations %v", err)
 		}
 	}
 

@@ -62,7 +62,9 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf(err.Error())
 		}
-		commandsSlices = append(commandsSlices, cmds)
+		if len(cmds) > 0 {
+			commandsSlices = append(commandsSlices, cmds)
+		}
 	}
 	return commandsSlices, nil
 }
