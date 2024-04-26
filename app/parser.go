@@ -40,6 +40,12 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	}
 	return cmds, nil
 }
+
+/*
+ParseReplication gets an []byte as input
+it handles the parsing of messages send by the master server to the replication server
+it splits up multiple commands send in one input slice so the client parser can handle it
+*/
 func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 	inputs := make([][]byte, 0)
 	var lastStartIndex = 0
@@ -50,7 +56,6 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 		}
 	}
 	inputs = append(inputs, input[lastStartIndex:])
-	//the first input got added twice but the second one wasnt added
 	commandsSlices := make([][]string, 0)
 	for _, input := range inputs {
 		cmds, err := s.Parser.Parse(input, s)
@@ -59,7 +64,6 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 		}
 		commandsSlices = append(commandsSlices, cmds)
 	}
-	fmt.Println(commandsSlices)
 	return commandsSlices, nil
 }
 

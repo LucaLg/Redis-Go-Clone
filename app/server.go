@@ -62,8 +62,8 @@ func (s *Server) handshake() error {
 		SliceToBulkString([]string{"REPLCONF", "capa", "psync2"}),
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
 	// reader := bufio.NewReader(conn)
+	// handleConnection
 	buff := make([]byte, 2048)
-	var index = 0
 	for _, hsInput := range handshakeStages {
 		i, err := conn.Write([]byte(hsInput))
 		if err != nil {
@@ -75,34 +75,38 @@ func (s *Server) handshake() error {
 		if err != nil {
 			return err
 		}
-		index = i
 	}
-	go func(net.Conn, []byte, int) {
-		for {
-			i, err := conn.Read(buff)
-			if err != nil {
-				if err == io.EOF {
-					log.Printf("Connection to %s closed", conn.RemoteAddr().String())
-					break
-				}
-				continue
-			}
-			// fmt.Println("Handshake input", string(buff[:i]))
-			cmds, err := s.Parser.parseReplication(buff[:i], s)
-			if err != nil {
-				log.Printf("Error parsing: %v", err)
-				continue
-			}
-			fmt.Println("Read ", cmds)
-			for _, cmd := range cmds {
-				_, err = s.handleCmds(cmd, conn)
-				if err != nil {
-					log.Printf("Error occured handleCmds in replication")
-					continue
-				}
-			}
-		}
-	}(conn, buff, index)
+	sem := make(chan struct{}, 100)
+	sem <- struct{}{}
+	go func(net.Conn, []byte) {
+		s.handleClient(conn, buff)
+		<-sem
+	}(conn, buff)
+	// go func(net.Conn, []byte) {
+	// 	for {
+	// 		i, err := conn.Read(buff)
+	// 		if err != nil {
+	// 			if err == io.EOF {
+	// 				log.Printf("Connection to %s closed", conn.RemoteAddr().String())
+	// 				break
+	// 			}
+	// 			continue
+	// 		}
+	// 		cmds, err := s.Parser.parseReplication(buff[:i], s)
+	// 		if err != nil {
+	// 			log.Printf("Error parsing: %v", err)
+	// 			continue
+	// 		}
+	// 		fmt.Println("Read ", cmds)
+	// 		for _, cmd := range cmds {
+	// 			_, err = s.handleCmds(cmd, conn)
+	// 			if err != nil {
+	// 				log.Printf("Error occured handleCmds in replication")
+	// 				continue
+	// 			}
+	// 		}
+	// 	}
+	// }(conn, buff)
 	return nil
 }
 func (s *Server) start() (net.Listener, error) {
@@ -146,14 +150,15 @@ func main() {
 		fmt.Println("Connection added to ", conn.RemoteAddr().String())
 		sem <- struct{}{}
 		go func(con net.Conn) {
-			server.handleClient(con)
+			buf := make([]byte, 2048)
+			server.handleClient(con, buf)
 			<-sem
 		}(conn)
 	}
 }
-func (s *Server) handleClient(conn net.Conn) {
+func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	defer conn.Close()
-	buf := make([]byte, 2048)
+	// buf := make([]byte, 2048)
 	for {
 		i, err := conn.Read(buf)
 		if err != nil {
@@ -167,31 +172,38 @@ func (s *Server) handleClient(conn net.Conn) {
 			continue
 		}
 		// fmt.Printf("%d bytes received from the connection %v", i, conn.RemoteAddr().String())
-		cmds, err := s.Parser.Parse(buf[:i], s)
-		if err != nil {
-			log.Printf("Error parsing: %v", err)
-			continue
-		}
-		response, err := s.handleCmds(cmds, conn)
-		if err != nil {
-			log.Printf("Error parsing input: %v", err)
-			continue
-		}
-
-		var answer = true
-		// if s.status == "slave" {
-		// 	masterAdd := fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)
-		// 	if masterAdd == conn.RemoteAddr().String() {
-		// 		answer = false
-		// 	}
-		// }
-		if answer {
-			err = s.writeResponse(conn, response)
+		if s.status == "master" {
+			cmds, err := s.Parser.Parse(buf[:i], s)
 			if err != nil {
-				log.Printf("Error writing input: %v", err)
+				log.Printf("Error parsing: %v", err)
 				continue
 			}
+			response, err := s.handleCmds(cmds, conn)
+			if err != nil {
+				log.Printf("Error parsing input: %v", err)
+				continue
+			}
+			err = s.writeResponse(conn, response)
+			if err != nil {
+				log.Printf("Error writing a response", err)
+				continue
+			}
+		} else {
+			cmds, err := s.Parser.parseReplication(buf[:i], s)
+			if err != nil {
+				log.Printf("Error parsing: %v", err)
+				continue
+			}
+			fmt.Println("Read ", cmds)
+			for _, cmd := range cmds {
+				_, err = s.handleCmds(cmd, conn)
+				if err != nil {
+					log.Printf("Error occured handleCmds in replication")
+					continue
+				}
+			}
 		}
+
 	}
 }
 func (s *Server) writeResponse(conn net.Conn, mess string) error {
