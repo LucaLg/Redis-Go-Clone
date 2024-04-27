@@ -141,7 +141,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			continue
 		}
-		fmt.Printf("%d bytes received from the connection %v", i, conn.RemoteAddr().String())
+		// fmt.Printf("%d bytes received from the connection %v", i, conn.RemoteAddr().String())
 		if s.status == "master" {
 			cmds, err := s.Parser.Parse(buf[:i], s)
 			if err != nil {
@@ -159,7 +159,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				continue
 			}
 		} else {
-			fmt.Println(string(buf[:i]))
+			// fmt.Println(string(buf[:i]))
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
 			fmt.Println("Replication parser ", cmds)
 			if err != nil {
