@@ -153,6 +153,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				log.Printf("Error parsing input: %v", err)
 				continue
 			}
+			fmt.Println("Response from the master", response)
 			err = s.writeResponse(conn, response)
 			if err != nil {
 				log.Printf("Error writing a response: %v", err)
