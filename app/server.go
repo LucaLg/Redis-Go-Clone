@@ -190,9 +190,9 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 
 	}
 }
-func (s *Server) writeResponse(conn net.Conn, mess string) error {
-	_, err := conn.Write([]byte(mess))
-	// fmt.Printf("%d Bytes written to %v %s \n", i, conn, mess)
+func (s *Server) writeResponse(writer io.Writer, mess string) error {
+	_, err := writer.Write([]byte(mess))
+	fmt.Printf(" Bytes written to  %s \n", mess)
 	if err != nil {
 		return err
 	}
