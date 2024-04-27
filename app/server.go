@@ -83,8 +83,9 @@ func (s *Server) handshake() error {
 		}
 	}
 
-	go s.handleClient(conn, buf)
-
+	go func(conn net.Conn, buf []byte) {
+		s.handleClient(conn, buf)
+	}(conn, buf)
 	return nil
 }
 func (s *Server) start() (net.Listener, error) {
@@ -146,7 +147,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			continue
 		}
-		// fmt.Printf("%d bytes received from the connection %v", i, conn.RemoteAddr().String())
+		fmt.Printf("%d bytes received from the connection %v", i, conn.RemoteAddr().String())
 		if s.status == "master" {
 			cmds, err := s.Parser.Parse(buf[:i], s)
 			if err != nil {
@@ -160,12 +161,13 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			err = s.writeResponse(conn, response)
 			if err != nil {
-				log.Printf("Error writing a response: %v", err) // Added formatting directive %v
+				log.Printf("Error writing a response: %v", err)
 				continue
 			}
 		} else {
 			fmt.Println(string(buf[:i]))
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
+			fmt.Println("Replication parser ", cmds)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
