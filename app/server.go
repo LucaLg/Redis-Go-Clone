@@ -68,18 +68,12 @@ func (s *Server) handshake() error {
 		if err != nil {
 			return err
 		}
-		// Read the response in a loop until there's no more data
-		for {
-			n, err := conn.Read(buf)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-				return err
-			}
-			if n < len(buf) {
+		_, err = conn.Read(buf)
+		if err != nil {
+			if err == io.EOF {
 				break
 			}
+			return err
 		}
 	}
 
