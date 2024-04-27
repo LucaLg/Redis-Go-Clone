@@ -159,27 +159,24 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				continue
 			}
 		} else {
-			// fmt.Println(string(buf[:i]))
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
-			fmt.Println("Replication parser ", cmds)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
 			}
-			fmt.Println("Read ", cmds)
 			for _, cmd := range cmds {
 				response, err := s.handleCmds(cmd, conn)
+				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
+					fmt.Println("Response written to replconf", response)
+					writeErr := s.writeResponse(conn, response)
+					if writeErr != nil {
+						log.Printf("Error writing a response: %v", writeErr)
+						continue
+					}
+				}
 				if err != nil {
 					log.Printf("Error occurred handleCmds in replication: %v", err)
 					continue
-				}
-				if cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT) {
-					fmt.Println("Response written to replconf", response)
-					err = s.writeResponse(conn, response)
-					if err != nil {
-						log.Printf("Error writing a response: %v", err)
-						continue
-					}
 				}
 			}
 		}
