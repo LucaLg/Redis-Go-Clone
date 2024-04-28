@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
+	"time"
 )
 
 func (s *Server) echo(cmdArr []string, conn net.Conn) string {
@@ -34,10 +35,12 @@ func (s *Server) info(cmdArr []string) string {
 	return ""
 }
 func (s *Server) replconf(cmdArr []string) (string, error) {
-	fmt.Println("Replconf reached !!!!!!!", cmdArr)
+
+	fmt.Println(" received ", cmdArr[1])
 	if len(cmdArr) > 1 {
 		switch cmdArr[1] {
 		case "getack":
+			fmt.Println("GetACK received ", cmdArr)
 			return "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n", nil
 		default:
 			return "+OK\r\n", nil
@@ -46,13 +49,21 @@ func (s *Server) replconf(cmdArr []string) (string, error) {
 	return "+OK\r\n", nil
 }
 func (s *Server) psync(cmdArr []string, conn net.Conn) (string, error) {
+	conn.(*net.TCPConn).SetNoDelay(true)
 	id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	fullResync := fmt.Sprintf("+FULLRESYNC %s 0\r\n", id)
 	s.writeResponse(conn, fullResync)
 	s.consMu.Lock()
 	s.repConns = append(s.repConns, &conn)
 	s.consMu.Unlock()
-	return s.rdbFile(), nil
+	f := s.rdbFile()
+	_, err := conn.Write([]byte(f))
+	if err != nil {
+		fmt.Printf("File not written %s", f)
+	}
+	time.Sleep(time.Millisecond * 400)
+	repl := SliceToBulkString([]string{"REPLCONF", "GETACK", "*"})
+	return repl, nil
 }
 func (s *Server) rdbFile() string {
 	emptyFileBase64 := "UkVESVMwMDEx+glyZWRpcy12ZXIFNy4yLjD6CnJlZGlzLWJpdHPAQPoFY3RpbWXCbQi8ZfoIdXNlZC1tZW3CsMQQAPoIYW9mLWJhc2XAAP/wbjv+wP9aog=="

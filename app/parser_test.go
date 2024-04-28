@@ -142,6 +142,48 @@ func TestParse(t *testing.T) {
 		// 	}
 
 		// })
+		t.Run("Test if a bulkString is valid", func(t *testing.T) {
+			tests := []struct {
+				input []byte
+				want  bool
+			}{
+				{[]byte("$6\r\nfoobar\r\n"), true},
+				{[]byte("$-1\r\n"), true},
+				{[]byte("$6\r\nfoo\r\n"), false},
+				{[]byte("6\r\nfoobar\r\n"), false},
+				{[]byte("$6\r\nfoobar"), false},
+				{[]byte(""), false},
+			}
 
+			for _, tt := range tests {
+
+				got := server.Parser.isValidBulkString(tt.input)
+				if got != tt.want {
+					t.Errorf("isValidBulkString(%q) = %v, want %v", tt.input, got, tt.want)
+				}
+			}
+		})
+
+	})
+	t.Run("Test if a bulkString Array is valid", func(t *testing.T) {
+
+		tests := []struct {
+			input []byte
+			want  bool
+		}{
+			{[]byte("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\n"), true},
+			{[]byte("*2\r\n$3\r\nfoo\r\n$3\r\nba\r\n"), false},
+			{[]byte("*2\r\n$3\r\nfoo\r\n3\r\nbar\r\n"), false},
+			{[]byte("*2\r\n$3\r\nfoo\r\n$3\r\nbar"), false},
+			{[]byte("*2\r\n$3\r\nfoo\r\n$3\r\nbar\r\nextra"), false},
+			{[]byte(""), false},
+		}
+
+		for _, tt := range tests {
+			got := server.Parser.isValidBulkStringArray(tt.input)
+			if got != tt.want {
+				t.Errorf("isValidBulkStringArray(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		}
 	})
 }

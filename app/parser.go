@@ -8,7 +8,7 @@ import (
 type Parser struct {
 }
 
-func parseLength(input []byte, index int) (int, int, error) {
+func (p *Parser) parseLength(input []byte, index int) (int, int, error) {
 	if string(input[0]) != "$" && string(input[0]) != "*" {
 		return -1, -1, fmt.Errorf("Isnt a valid input to parse")
 	}
@@ -21,8 +21,9 @@ func parseLength(input []byte, index int) (int, int, error) {
 	return arrayLength, i + 2, nil
 }
 
-func parseWords(input []byte, startIndex int) (string, int, error) {
-	wordLength, index, err := parseLength(input, startIndex)
+func (p *Parser) parseWords(input []byte, startIndex int) (string, int, error) {
+
+	wordLength, index, err := p.parseLength(input, startIndex)
 	if err != nil {
 		return "", -1, err
 	}
@@ -32,13 +33,13 @@ func parseWords(input []byte, startIndex int) (string, int, error) {
 	return string(input[index : index+wordLength]), wordLength + index + 2, nil
 }
 func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
-	arrayLength, index, err := parseLength(input, 0)
+	arrayLength, index, err := p.parseLength(input, 0)
 	if arrayLength < 0 || err != nil {
 		return nil, fmt.Errorf("the input coulndt be parsed %s", string(input))
 	}
 	cmds := make([]string, arrayLength)
 	for i := 0; i < arrayLength; i++ {
-		cmds[i], index, err = parseWords(input, index)
+		cmds[i], index, err = p.parseWords(input, index)
 		if err != nil {
 			return nil, err
 		}
@@ -76,4 +77,44 @@ func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
 }
 func isValidCommandStart(input []byte, i int) bool {
 	return input[i] == '*' && i+1 < len(input) && input[i+1] != '\r'
+}
+
+func (p *Parser) isValidBulkString(input []byte) bool {
+	l := len(input)
+	if l < 5 {
+		return false
+	}
+	fmt.Printf("Is %s valid ?\n", string(input))
+	return (input[0] == '$' || input[0] == '*') && input[l-1] == '\n' && input[l-2] == '\r'
+
+}
+func (p *Parser) isValidBulkStringArray(input []byte) bool {
+	if len(input) == 0 || input[0] != '*' {
+		return false
+	}
+
+	bulkStringLength, i, err := p.parseLength(input, 0)
+	if err != nil {
+		return false
+	}
+
+	for j := 0; j < bulkStringLength; j++ {
+		if i >= len(input) || input[i] != '$' {
+			return false
+		}
+
+		_, i, err = p.parseLength(input, i)
+		if err != nil {
+			return false
+		}
+
+		endOfBulkString := i + 2 // account for \r\n
+		if endOfBulkString > len(input) || !p.isValidBulkString(input[i:endOfBulkString]) {
+			return false
+		}
+
+		i = endOfBulkString
+	}
+
+	return true
 }
