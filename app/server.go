@@ -43,41 +43,18 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	// connCh := make(chan net.Conn)
-	// go func() {
 	conn, lastRef, err := s.handshake()
 	if err != nil {
 		fmt.Println("An error occured during the handshake", err)
-		// close(connCh)
 		return
 	}
-	buf := make([]byte, 2048)
-	if strings.Contains(lastRef, "GETACK") {
-		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
-		_, err = conn.Write([]byte(response))
-		if err != nil {
-			fmt.Println("An error occured during the handshake", err)
-		}
-	} else {
-		n, err := conn.Read(buf)
-		if err != nil {
-			fmt.Println("An error occured during reading handshake", err)
-		}
-		if strings.Contains(string(buf[:n]), "GETACK") {
-			response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
-			_, err = conn.Write([]byte(response))
-			if err != nil {
-				fmt.Println("An error occured during the handshake", err)
-			}
-		}
+	fmt.Println("LastRef", lastRef)
+	response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+	_, err = conn.Write([]byte(response))
+	if err != nil {
+		fmt.Println("An error occured during the handshake", err)
 	}
-	// connCh <- conn
-	// }()
-
-	// if err != nil {
-	// 	log.Fatalf(err.Error())
-	// }
-	// conn := <-connCh
+	buf := make([]byte, 2048)
 	go func() {
 		s.handleClient(conn, buf)
 	}()
