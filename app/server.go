@@ -160,9 +160,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	defer conn.Close()
 	for {
 		i, err := conn.Read(buf)
-		if !s.isRemoteMaster(conn) {
-			fmt.Println("Client read", string(buf[:i]))
-		}
+
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
