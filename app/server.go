@@ -92,20 +92,20 @@ func (s *Server) handshake() (net.Conn, error) {
 		}
 	}
 	if !getack {
-		for {
-			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-			i, err := conn.Read(buf)
-			if err != nil {
-				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					fmt.Println("Read timed out")
-					fmt.Println("2.Read in handshake after write ", string(buf[:i]))
+		// for {
+		// 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		// 	i, err := conn.Read(buf)
+		// 	if err != nil {
+		// 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		// 			fmt.Println("Read timed out")
+		// 			fmt.Println("2.Read in handshake after write ", string(buf[:i]))
 
-				} else {
-					fmt.Println("Read error:", err)
-				}
-				break
-			}
-		}
+		// 		} else {
+		// 			fmt.Println("Read error:", err)
+		// 		}
+		// 		break
+		// 	}
+		// }
 	}
 	conn.SetReadDeadline(time.Time{})
 	fmt.Println("Handshake finished")
