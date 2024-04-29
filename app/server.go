@@ -161,6 +161,11 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	for {
 		i, err := conn.Read(buf)
 
+		res := string(buf[:i])
+		if strings.Contains(res, "redis") {
+			fmt.Println("1.Read in handshake after write ", res)
+			s.handleRDBAndGetAck(res, conn)
+		}
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
