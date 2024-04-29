@@ -161,11 +161,6 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	for {
 		i, err := conn.Read(buf)
 
-		res := string(buf[:i])
-		if strings.Contains(res, "redis") {
-			fmt.Println("1.Read in handshake after write ", res)
-			s.handleRDBAndGetAck(res, conn)
-		}
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
@@ -176,7 +171,15 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			continue
 		}
 		if s.status == "slave" && s.isRemoteMaster(conn) {
-			s.replication.offset += i
+			res := string(buf[:i])
+			rdbFilePres := strings.Contains(res, "redis")
+			if rdbFilePres {
+				fmt.Println("1.Read in handshake after write ", res)
+				s.handleRDBAndGetAck(res, conn)
+				s.replication.offset += 37
+			} else {
+				s.replication.offset += i
+			}
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
