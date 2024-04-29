@@ -45,7 +45,7 @@ func (s *Server) handleReplication() {
 	}
 	// connCh := make(chan net.Conn)
 	// go func() {
-	conn, err := s.handshake()
+	conn, lastRef, err := s.handshake()
 	if err != nil {
 		fmt.Println("An error occured during the handshake", err)
 		// close(connCh)
@@ -56,7 +56,7 @@ func (s *Server) handleReplication() {
 	if err != nil {
 		fmt.Println("An error occured during reading  handshake", err)
 	}
-	if strings.Contains(string(buf[:n]), "GETACK") {
+	if strings.Contains(string(buf[:n]), "GETACK") || strings.Contains(lastRef, "GETACK") {
 		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
 		_, err = conn.Write([]byte(response))
 		if err != nil {
@@ -75,11 +75,11 @@ func (s *Server) handleReplication() {
 	}()
 
 }
-func (s *Server) handshake() (net.Conn, error) {
+func (s *Server) handshake() (net.Conn, string, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
 	if err != nil {
 		fmt.Printf("Replication couldnt connect to master on port %s", s.replication.HOST_PORT)
-		return nil, err
+		return nil, "", err
 	}
 	handshakeStages := []string{
 		SliceToBulkString([]string{"PING"}),
@@ -88,41 +88,24 @@ func (s *Server) handshake() (net.Conn, error) {
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
 
 	buf := make([]byte, 2048)
+	lastres := ""
 	for _, hsInput := range handshakeStages {
 		_, err := conn.Write([]byte(hsInput))
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
-		_, err = conn.Read(buf)
+		n, err := conn.Read(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return conn, err
+			return conn, "", err
 		}
+		lastres = string(buf[:n])
 	}
 
-	// for {
-	// 	n, err := conn.Read(buf)
-	// 	if err != nil {
-	// 		if err == io.EOF {
-	// 			break
-	// 		}
-	// 		return conn, err
-	// 	}
-	// 	fmt.Println(string(buf[:n]))
-	// 	res = fmt.Sprintf("%s%s", res, string(buf[:n]))
-	// 	if strings.Contains(res, "GETACK") {
-	// 		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
-	// 		_, err = conn.Write([]byte(response))
-	// 		if err != nil {
-	// 			return conn, err
-	// 		}
-	// 		break
-	// 	}
-	// }
 	fmt.Println("Handshake finished")
-	return conn, nil
+	return conn, lastres, nil
 }
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
