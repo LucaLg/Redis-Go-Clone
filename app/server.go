@@ -234,6 +234,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return "", nil
 	case "command":
 		return "+PONG\r\n", nil
+	case "wait":
+		return fmt.Sprintf(":%d\r\n", len(s.repConns)), nil
 	case "set":
 		fmt.Println(cmdArr)
 		return s.set(cmdArr, conn)
