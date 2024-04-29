@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net"
-	"time"
 )
 
 func (s *Server) echo(cmdArr []string, conn net.Conn) string {
@@ -61,7 +60,6 @@ func (s *Server) psync(cmdArr []string, conn net.Conn) (string, error) {
 	if err != nil {
 		fmt.Printf("File not written %s", f)
 	}
-	time.Sleep(time.Millisecond * 400)
 	repl := SliceToBulkString([]string{"REPLCONF", "GETACK", "*"})
 	return repl, nil
 }

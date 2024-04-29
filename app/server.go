@@ -43,18 +43,33 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	err := s.handshake()
-	if err != nil {
-		fmt.Println("An error occured during the handshake")
-		log.Fatalf(err.Error())
-	}
+	connCh := make(chan net.Conn)
+	go func() {
+		conn, err := s.handshake()
+		if err != nil {
+			fmt.Println("An error occured during the handshake", err)
+			close(connCh)
+			return
+		}
+
+		connCh <- conn
+	}()
+
+	// if err != nil {
+	// 	log.Fatalf(err.Error())
+	// }
+	conn := <-connCh
+	buf := make([]byte, 2048)
+	go func() {
+		s.handleClient(conn, buf)
+	}()
 
 }
-func (s *Server) handshake() error {
+func (s *Server) handshake() (net.Conn, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
 	if err != nil {
 		fmt.Printf("Replication couldnt connect to master on port %s", s.replication.HOST_PORT)
-		return err
+		return nil, err
 	}
 	handshakeStages := []string{
 		SliceToBulkString([]string{"PING"}),
@@ -63,26 +78,37 @@ func (s *Server) handshake() error {
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
 
 	buf := make([]byte, 2048)
+	res := ""
 	for _, hsInput := range handshakeStages {
 		_, err := conn.Write([]byte(hsInput))
 		if err != nil {
-			return err
+			return nil, err
 		}
+		n, err := conn.Read(buf)
+		if err != nil {
+			break
+		}
+		// fmt.Printf("Message received %s\n", buf[:n])
+		res = fmt.Sprintf("%s%s", res, buf[:n])
+	}
+
+	for !strings.Contains(res, "GETACK") {
 		n, err := conn.Read(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return err
+			return conn, err
 		}
-		fmt.Println(string(buf[:n]))
+		res = fmt.Sprintf("%s%s", res, buf[:n])
+		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+		_, err = conn.Write([]byte(response))
+		if err != nil {
+			return conn, err
+		}
 	}
-
-	go func() {
-		s.handleClient(conn, buf)
-	}()
-
-	return nil
+	fmt.Println("Handshake finished")
+	return conn, nil
 }
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
@@ -162,6 +188,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 		// 		}
 		// 	}
 		// } else {
+		fmt.Println("res", string(buf[:i]))
 		if s.Parser.isValidBulkString(buf[:i]) {
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
 			if err != nil {

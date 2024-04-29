@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -184,6 +185,21 @@ func TestParse(t *testing.T) {
 			if got != tt.want {
 				t.Errorf("isValidBulkStringArray(%q) = %v, want %v", tt.input, got, tt.want)
 			}
+		}
+	})
+	t.Run("test with specific input", func(t *testing.T) {
+		p := &Parser{}
+		s := &Server{}
+		input := fmt.Sprintf("$88\r\nREDIS0011�\tredis-ver7.2.0�\nredis-bits�@�ctime��eused-mem°�aof-base���n;���Z�*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")
+		result, err := p.parseReplication([]byte(input), s)
+		if err != nil {
+			t.Fatalf("Expected no error, but got: %v", err)
+		}
+
+		// Add your expected result here
+		expected := [][]string{{"replconf"}, {"getack"}, {"*"}}
+		if !reflect.DeepEqual(result, expected) {
+			t.Fatalf("Expected %v, but got: %v", expected, result)
 		}
 	})
 }
