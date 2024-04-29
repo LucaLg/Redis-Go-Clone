@@ -54,7 +54,7 @@ func (s *Server) handleReplication() {
 	buf := make([]byte, 2048)
 	n, err := conn.Read(buf)
 	if err != nil {
-		fmt.Println("An error occured during the handshake", err)
+		fmt.Println("An error occured during reading  handshake", err)
 	}
 	if strings.Contains(string(buf[:n]), "GETACK") {
 		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
