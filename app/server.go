@@ -43,23 +43,33 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	connCh := make(chan net.Conn)
-	go func() {
-		conn, err := s.handshake()
+	// connCh := make(chan net.Conn)
+	// go func() {
+	conn, err := s.handshake()
+	if err != nil {
+		fmt.Println("An error occured during the handshake", err)
+		// close(connCh)
+		return
+	}
+	buf := make([]byte, 2048)
+	n, err := conn.Read(buf)
+	if err != nil {
+		fmt.Println("An error occured during the handshake", err)
+	}
+	if strings.Contains(string(buf[:n]), "GETACK") {
+		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+		_, err = conn.Write([]byte(response))
 		if err != nil {
 			fmt.Println("An error occured during the handshake", err)
-			close(connCh)
-			return
 		}
-
-		connCh <- conn
-	}()
+	}
+	// connCh <- conn
+	// }()
 
 	// if err != nil {
 	// 	log.Fatalf(err.Error())
 	// }
-	conn := <-connCh
-	buf := make([]byte, 2048)
+	// conn := <-connCh
 	go func() {
 		s.handleClient(conn, buf)
 	}()
@@ -78,35 +88,39 @@ func (s *Server) handshake() (net.Conn, error) {
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
 
 	buf := make([]byte, 2048)
-	res := ""
 	for _, hsInput := range handshakeStages {
 		_, err := conn.Write([]byte(hsInput))
 		if err != nil {
 			return nil, err
 		}
-		n, err := conn.Read(buf)
-		if err != nil {
-			break
-		}
-		// fmt.Printf("Message received %s\n", buf[:n])
-		res = fmt.Sprintf("%s%s", res, buf[:n])
-	}
-
-	for !strings.Contains(res, "GETACK") {
-		n, err := conn.Read(buf)
+		_, err = conn.Read(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
 			return conn, err
 		}
-		res = fmt.Sprintf("%s%s", res, buf[:n])
-		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
-		_, err = conn.Write([]byte(response))
-		if err != nil {
-			return conn, err
-		}
 	}
+
+	// for {
+	// 	n, err := conn.Read(buf)
+	// 	if err != nil {
+	// 		if err == io.EOF {
+	// 			break
+	// 		}
+	// 		return conn, err
+	// 	}
+	// 	fmt.Println(string(buf[:n]))
+	// 	res = fmt.Sprintf("%s%s", res, string(buf[:n]))
+	// 	if strings.Contains(res, "GETACK") {
+	// 		response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
+	// 		_, err = conn.Write([]byte(response))
+	// 		if err != nil {
+	// 			return conn, err
+	// 		}
+	// 		break
+	// 	}
+	// }
 	fmt.Println("Handshake finished")
 	return conn, nil
 }
@@ -197,7 +211,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			for _, cmd := range cmds {
 				response, err := s.handleCmds(cmd, conn)
-				if s.status == "master" || (cmd[0] == "replconf" || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)) {
+				if s.status == "master" || ((cmd[0] == "replconf" && cmd[1] == "getack") || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)) {
 					writeErr := s.writeResponse(conn, response)
 					if writeErr != nil {
 						log.Printf("Error writing a response: %v", writeErr)
