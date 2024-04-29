@@ -84,7 +84,6 @@ func (p *Parser) isValidBulkString(input []byte) bool {
 	if l < 5 {
 		return false
 	}
-	fmt.Printf("Is %s valid ?\n", string(input))
 	return (input[0] == '$' || input[0] == '*') && input[l-1] == '\n' && input[l-2] == '\r'
 
 }

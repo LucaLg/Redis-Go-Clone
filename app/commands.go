@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
+	"io"
 	"net"
+	"strings"
 	"time"
 )
 
@@ -11,12 +13,16 @@ func (s *Server) echo(cmdArr []string, conn net.Conn) string {
 	return fmt.Sprintf("+%s\r\n", cmdArr[1])
 }
 func (s *Server) set(cmdArr []string, conn net.Conn) (string, error) {
-	s.handlePropagation(cmdArr)
+	if s.status == "master" {
+		s.handlePropagation(cmdArr)
+	}
 	s.Store.handleSet(cmdArr)
 	return "+OK\r\n", nil
 }
 func (s *Server) get(cmdArr []string, conn net.Conn) (string, error) {
-	s.handlePropagation(cmdArr)
+	if s.status == "master" {
+		s.handlePropagation(cmdArr)
+	}
 	result, err := s.Store.handleGet(cmdArr[1])
 	if err != nil {
 		return "", err
@@ -41,7 +47,11 @@ func (s *Server) replconf(cmdArr []string) (string, error) {
 		switch cmdArr[1] {
 		case "getack":
 			fmt.Println("GetACK received ", cmdArr)
-			return "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n", nil
+			offset := fmt.Sprint(s.replication.offset)
+			res := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$%d\r\n%s\r\n", len(offset), offset)
+			return res, nil
+		case "ack":
+			return "", nil
 		default:
 			return "+OK\r\n", nil
 		}
@@ -72,4 +82,18 @@ func (s *Server) rdbFile() string {
 		fmt.Errorf("An error occured encoding the rdbfile %v", err)
 	}
 	return fmt.Sprintf("$%d\r\n%s", len(emptyFile), emptyFile)
+}
+func (s *Server) handleRDBAndGetAck(c string, w io.Writer) error {
+	cmds := strings.Split(c, "*")
+	if len(cmds) > 1 {
+		replRes, err := s.replconf([]string{"replconf", "getack", "*"})
+		if err != nil {
+			return err
+		}
+		_, err = w.Write([]byte(replRes))
+		if err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("rdb file was send seperate from getack ")
 }

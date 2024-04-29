@@ -15,6 +15,7 @@ import (
 type Replication struct {
 	HOST_IP   string
 	HOST_PORT string
+	offset    int
 }
 type Value struct {
 	value   string
@@ -43,28 +44,23 @@ func (s *Server) handleReplication() {
 		HOST_IP:   flag.Args()[0],
 		HOST_PORT: flag.Args()[1],
 	}
-	conn, lastRef, err := s.handshake()
+	conn, err := s.handshake()
 	if err != nil {
 		fmt.Println("An error occured during the handshake", err)
 		return
 	}
-	fmt.Println("LastRef", lastRef)
-	response := "*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$1\r\n0\r\n"
-	_, err = conn.Write([]byte(response))
-	if err != nil {
-		fmt.Println("An error occured during the handshake", err)
-	}
+
 	buf := make([]byte, 2048)
 	go func() {
 		s.handleClient(conn, buf)
 	}()
 
 }
-func (s *Server) handshake() (net.Conn, string, error) {
+func (s *Server) handshake() (net.Conn, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
 	if err != nil {
 		fmt.Printf("Replication couldnt connect to master on port %s", s.replication.HOST_PORT)
-		return nil, "", err
+		return nil, err
 	}
 	handshakeStages := []string{
 		SliceToBulkString([]string{"PING"}),
@@ -73,24 +69,47 @@ func (s *Server) handshake() (net.Conn, string, error) {
 		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
 
 	buf := make([]byte, 2048)
-	lastres := ""
+	getack := false
 	for _, hsInput := range handshakeStages {
 		_, err := conn.Write([]byte(hsInput))
 		if err != nil {
-			return nil, "", err
+			return nil, err
 		}
-		n, err := conn.Read(buf)
+		i, err := conn.Read(buf)
 		if err != nil {
 			if err == io.EOF {
 				break
 			}
-			return conn, "", err
+			return conn, err
 		}
-		lastres = string(buf[:n])
-	}
+		res := string(buf[:i])
 
+		if strings.Contains(res, "*") {
+			fmt.Println("1.Read in handshake after write ", res)
+			s.handleRDBAndGetAck(res, conn)
+			getack = true
+			break
+		}
+	}
+	if !getack {
+		for {
+			conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+			i, err := conn.Read(buf)
+			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					fmt.Println("Read timed out")
+					fmt.Println("2.Read in handshake after write ", string(buf[:i]))
+
+				} else {
+					fmt.Println("Read error:", err)
+				}
+				break
+			}
+		}
+	}
+	conn.SetReadDeadline(time.Time{})
 	fmt.Println("Handshake finished")
-	return conn, lastres, nil
+	return conn, nil
 }
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
@@ -141,6 +160,9 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	defer conn.Close()
 	for {
 		i, err := conn.Read(buf)
+		if !s.isRemoteMaster(conn) {
+			fmt.Println("Client read", string(buf[:i]))
+		}
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
@@ -150,27 +172,9 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			continue
 		}
-		// if s.status == "master" {
-
-		// 	if s.Parser.isValidBulkString(buf[:i]) {
-		// 		cmds, err := s.Parser.Parse(buf[:i], s)
-		// 		if err != nil {
-		// 			log.Printf("Error parsing: %s", err.Error())
-		// 			continue
-		// 		}
-		// 		response, err := s.handleCmds(cmds, conn)
-		// 		if err != nil {
-		// 			log.Printf("Error parsing input: %v", err)
-		// 			continue
-		// 		}
-		// 		err = s.writeResponse(conn, response)
-		// 		if err != nil {
-		// 			log.Printf("Error writing a response: %v", err)
-		// 			continue
-		// 		}
-		// 	}
-		// } else {
-		fmt.Println("res", string(buf[:i]))
+		if s.status == "slave" && s.isRemoteMaster(conn) {
+			s.replication.offset += i
+		}
 		if s.Parser.isValidBulkString(buf[:i]) {
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
 			if err != nil {
@@ -179,7 +183,8 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			for _, cmd := range cmds {
 				response, err := s.handleCmds(cmd, conn)
-				if s.status == "master" || ((cmd[0] == "replconf" && cmd[1] == "getack") || conn.RemoteAddr().String() != fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT)) {
+				if s.shouldRespond(cmd, conn) {
+					fmt.Println("Received cmd", cmd)
 					writeErr := s.writeResponse(conn, response)
 					if writeErr != nil {
 						log.Printf("Error writing a response: %v", writeErr)
@@ -194,6 +199,18 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 		}
 	}
 
+}
+func (s *Server) isRemoteMaster(conn net.Conn) bool {
+	hostIP := s.replication.HOST_IP
+	if hostIP == "localhost" {
+		hostIP = "[::1]"
+	}
+	val := conn.RemoteAddr().String() == fmt.Sprintf("%s:%s", hostIP, s.replication.HOST_PORT)
+	return val
+}
+func (s *Server) shouldRespond(cmd []string, conn net.Conn) bool {
+	fmt.Println()
+	return s.status == "master" || (cmd[0] == "replconf" && cmd[1] == "getack") || !s.isRemoteMaster(conn)
 }
 
 func (s *Server) writeResponse(writer io.Writer, mess string) error {
@@ -218,6 +235,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case "command":
 		return "+PONG\r\n", nil
 	case "set":
+		fmt.Println(cmdArr)
 		return s.set(cmdArr, conn)
 	case "get":
 		return s.get(cmdArr, conn)
