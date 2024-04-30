@@ -97,3 +97,16 @@ func (s *Server) handleRDBAndGetAck(c string, w io.Writer) error {
 	}
 	return fmt.Errorf("rdb file was send seperate from getack ")
 }
+func (s *Server) handleConfig(cmdArr []string) (string, error) {
+	if len(cmdArr) < 2 {
+		return "", fmt.Errorf("Error handling config ")
+	} else {
+		switch cmdArr[2] {
+		case "dir":
+			return SliceToBulkString([]string{"dir", s.rdbDir}), nil
+		case "dbfilename":
+			return SliceToBulkString([]string{"dbfilename", s.rdbName}), nil
+		}
+	}
+	return "", fmt.Errorf("No config message handled")
+}

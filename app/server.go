@@ -32,6 +32,9 @@ type Server struct {
 
 	consMu   sync.Mutex
 	repConns []*net.Conn
+
+	rdbDir  string
+	rdbName string
 }
 
 func (s *Server) handleReplication() {
@@ -113,8 +116,12 @@ func (s *Server) handshake() (net.Conn, error) {
 }
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
+	rdbDir := flag.String("dir", "/tmp/redis-files ", "Specify a filepath where the rdb file is stored")
+	rdbfileName := flag.String("dbfilename", "dump.rdb", "Specify a filename for the rdb ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
 	flag.Parse()
+	s.rdbDir = *rdbDir
+	s.rdbName = *rdbfileName
 	s.addr = fmt.Sprintf("%s:%s", "localhost", *portFlag)
 	if *replicationFlag {
 		s.handleReplication()
@@ -256,6 +263,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.replconf(cmdArr)
 	case "psync":
 		return s.psync(cmdArr, conn)
+	case "config":
+		return s.handleConfig(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}
