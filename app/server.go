@@ -143,6 +143,7 @@ func main() {
 		Store: store,
 	}
 	l, err := server.start()
+	server.rdbParser.loadData(&server)
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
 		os.Exit(1)
@@ -259,7 +260,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case "info":
 		return s.info(cmdArr), nil
 	case "keys":
-		return s.rdbParser.ParseFile()
+		return s.rdbParser.ParseFile(s)
 	case "replconf":
 		return s.replconf(cmdArr)
 	case "psync":

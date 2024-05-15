@@ -11,9 +11,15 @@ type RdbParser struct {
 	filename string
 	dir      string
 }
+type KeyValPair struct {
+	key string
+	val string
+}
 
-func (r *RdbParser) ParseFile() (string, error) {
-
+func (r *RdbParser) loadData(s *Server) {
+	r.ParseFile(s)
+}
+func (r *RdbParser) ParseFile(s *Server) (string, error) {
 	path := fmt.Sprintf("%s/%s", r.dir, r.filename)
 	c, err := os.ReadFile(path)
 	if err != nil {
@@ -22,44 +28,52 @@ func (r *RdbParser) ParseFile() (string, error) {
 	if !r.isValid(c) {
 		return "", fmt.Errorf("the given file is not a valid rdb file")
 	}
-	keys, err := r.readKeys(c)
+	keyValPairs, err := r.readKeys(c)
 	if err != nil {
-		return "", fmt.Errorf("error occured while reading keys", err)
+		return "", fmt.Errorf("error occured while reading keys %v", err)
+	}
+
+	keys := []string{}
+	for _, p := range keyValPairs {
+		s.Store.handleSet([]string{"set", p.key, p.val})
+		keys = append(keys, p.key)
 	}
 	return SliceToBulkString(keys), nil
 }
-func (r *RdbParser) readKeys(c []byte) ([]string, error) {
+func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 	reader := bytes.NewReader(c)
 	s := bufio.NewReader(reader)
-	fileString, err := s.ReadString(0xFB)
+	_, err := s.ReadString(0xFB)
 	if err != nil {
-		return []string{}, err
+		return []KeyValPair{}, err
 
 	}
-	fmt.Println("File string", fileString)
 	keyString, err := s.ReadBytes(0xFF)
 	if err != nil {
-		return []string{}, err
+		return []KeyValPair{}, err
 
 	}
 	i := 2
 	mapLength := int(keyString[0])
-	keys := make([]string, mapLength)
+	keys := make([]KeyValPair, mapLength)
 	keyIndex := 0
-	for i <= len(keyString) {
+	fmt.Println(keyString)
+	for i < len(keyString) {
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
 			keyLength := int(keyString[i])
 			i++
-			keys[keyIndex] = string(keyString[i : i+keyLength])
-			i += keyLength + 1
+			keys[keyIndex].key = string(keyString[i : i+keyLength])
+			i += keyLength
 			valueLength := int(keyString[i])
+			i++
+			keys[keyIndex].val = string(keyString[i : i+valueLength])
 			i = i + valueLength + 1
 		}
 		keyIndex++
 	}
-	fmt.Println("Key String", keys[0])
+	fmt.Println(keys)
 	return keys, nil
 }
 
