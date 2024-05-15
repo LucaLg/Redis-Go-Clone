@@ -17,11 +17,6 @@ type Replication struct {
 	HOST_PORT string
 	offset    int
 }
-type Value struct {
-	value   string
-	savedAt time.Time
-	expire  time.Duration
-}
 type Server struct {
 	addr        string
 	status      string

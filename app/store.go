@@ -11,6 +11,12 @@ type Store struct {
 	Data  map[string]Value
 }
 
+type Value struct {
+	value   string
+	savedAt time.Time
+	expire  time.Duration
+}
+
 func (s *Store) handleGet(key string) (string, error) {
 	s.Mutex.Lock()
 	val, exist := s.Data[key]

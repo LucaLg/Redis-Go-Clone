@@ -13,7 +13,7 @@ type RdbParser struct {
 }
 type KeyValPair struct {
 	key string
-	val string
+	val Value
 }
 
 func (r *RdbParser) loadData(s *Server) {
@@ -35,7 +35,7 @@ func (r *RdbParser) ParseFile(s *Server) (string, error) {
 
 	keys := []string{}
 	for _, p := range keyValPairs {
-		s.Store.handleSet([]string{"set", p.key, p.val})
+		s.Store.handleSet([]string{"set", p.key, p.val.value})
 		keys = append(keys, p.key)
 	}
 	return SliceToBulkString(keys), nil
@@ -49,6 +49,7 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 
 	}
 	keyString, err := s.ReadBytes(0xFF)
+	fmt.Println(keyString)
 	if err != nil {
 		return []KeyValPair{}, err
 
@@ -67,7 +68,7 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 			i += keyLength
 			valueLength := int(keyString[i])
 			i++
-			keys[keyIndex].val = string(keyString[i : i+valueLength])
+			keys[keyIndex].val.value = string(keyString[i : i+valueLength])
 			fmt.Println(keys)
 			i = i + valueLength
 			keyIndex++
