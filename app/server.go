@@ -260,7 +260,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case "info":
 		return s.info(cmdArr), nil
 	case "keys":
-		return s.rdbParser.ParseFile(s)
+		return SliceToBulkString(s.Store.getKeys()), nil
 	case "replconf":
 		return s.replconf(cmdArr)
 	case "psync":

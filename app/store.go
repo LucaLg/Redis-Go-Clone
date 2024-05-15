@@ -45,3 +45,12 @@ func (s *Store) handleSet(cmdArr []string) {
 	}
 	s.Mutex.Unlock()
 }
+func (s *Store) getKeys() []string {
+	keys := make([]string, len(s.Data))
+	i := 0
+	for v, _ := range s.Data {
+		keys[i] = v
+		i++
+	}
+	return keys
+}

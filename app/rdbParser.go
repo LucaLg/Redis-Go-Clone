@@ -57,7 +57,6 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 	mapLength := int(keyString[0])
 	keys := make([]KeyValPair, mapLength)
 	keyIndex := 0
-	fmt.Println(keyString)
 	for i < len(keyString) {
 		valueType := int(keyString[i])
 		i++
@@ -69,11 +68,11 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 			valueLength := int(keyString[i])
 			i++
 			keys[keyIndex].val = string(keyString[i : i+valueLength])
-			i = i + valueLength + 1
+			fmt.Println(keys)
+			i = i + valueLength
 			keyIndex++
 		}
 	}
-	fmt.Println(keys)
 	return keys, nil
 }
 
