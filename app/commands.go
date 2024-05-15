@@ -103,9 +103,9 @@ func (s *Server) handleConfig(cmdArr []string) (string, error) {
 	} else {
 		switch cmdArr[2] {
 		case "dir":
-			return SliceToBulkString([]string{"dir", s.rdbDir}), nil
+			return SliceToBulkString([]string{"dir", s.rdbParser.dir}), nil
 		case "dbfilename":
-			return SliceToBulkString([]string{"dbfilename", s.rdbName}), nil
+			return SliceToBulkString([]string{"dbfilename", s.rdbParser.filename}), nil
 		}
 	}
 	return "", fmt.Errorf("No config message handled")

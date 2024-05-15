@@ -27,8 +27,9 @@ type Server struct {
 	status      string
 	replication Replication
 
-	Store  *Store
-	Parser Parser
+	Store     *Store
+	Parser    Parser
+	rdbParser RdbParser
 
 	consMu   sync.Mutex
 	repConns []*net.Conn
@@ -57,8 +58,8 @@ func (s *Server) handleReplication() {
 	go func() {
 		s.handleClient(conn, buf)
 	}()
-
 }
+
 func (s *Server) handshake() (net.Conn, error) {
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%s", s.replication.HOST_IP, s.replication.HOST_PORT))
 	if err != nil {
@@ -69,7 +70,8 @@ func (s *Server) handshake() (net.Conn, error) {
 		SliceToBulkString([]string{"PING"}),
 		SliceToBulkString([]string{"REPLCONF", "listening-port", strings.Split(s.addr, ":")[1]}),
 		SliceToBulkString([]string{"REPLCONF", "capa", "psync2"}),
-		SliceToBulkString([]string{"PSYNC", "?", "-1"})}
+		SliceToBulkString([]string{"PSYNC", "?", "-1"}),
+	}
 
 	buf := make([]byte, 2048)
 	getack := false
@@ -114,14 +116,15 @@ func (s *Server) handshake() (net.Conn, error) {
 	fmt.Println("Handshake finished")
 	return conn, nil
 }
+
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
 	rdbDir := flag.String("dir", "/tmp/redis-files ", "Specify a filepath where the rdb file is stored")
 	rdbfileName := flag.String("dbfilename", "dump.rdb", "Specify a filename for the rdb ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
 	flag.Parse()
-	s.rdbDir = *rdbDir
-	s.rdbName = *rdbfileName
+	s.rdbParser.dir = *rdbDir
+	s.rdbParser.filename = *rdbfileName
 	s.addr = fmt.Sprintf("%s:%s", "localhost", *portFlag)
 	if *replicationFlag {
 		s.handleReplication()
@@ -129,11 +132,9 @@ func (s *Server) start() (net.Listener, error) {
 		s.status = "master"
 	}
 	return net.Listen("tcp", s.addr)
-
 }
 
 func main() {
-
 	store := &Store{
 		Mutex: sync.Mutex{},
 		Data:  make(map[string]Value),
@@ -163,11 +164,11 @@ func main() {
 		}(conn)
 	}
 }
+
 func (s *Server) handleClient(conn net.Conn, buf []byte) {
 	defer conn.Close()
 	for {
 		i, err := conn.Read(buf)
-
 		if err != nil {
 			if err == io.EOF {
 				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
@@ -211,8 +212,8 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 		}
 	}
-
 }
+
 func (s *Server) isRemoteMaster(conn net.Conn) bool {
 	hostIP := s.replication.HOST_IP
 	if hostIP == "localhost" {
@@ -221,6 +222,7 @@ func (s *Server) isRemoteMaster(conn net.Conn) bool {
 	val := conn.RemoteAddr().String() == fmt.Sprintf("%s:%s", hostIP, s.replication.HOST_PORT)
 	return val
 }
+
 func (s *Server) shouldRespond(cmd []string, conn net.Conn) bool {
 	fmt.Println()
 	return s.status == "master" || (cmd[0] == "replconf" && cmd[1] == "getack") || !s.isRemoteMaster(conn)
@@ -256,9 +258,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.get(cmdArr, conn)
 	case "info":
 		return s.info(cmdArr), nil
-	case "test":
-		s.handlePropagation([]string{"replconf", "getack", "*"})
-		return "+PONG\r\n", nil
+	case "keys":
+		return s.rdbParser.ParseFile()
 	case "replconf":
 		return s.replconf(cmdArr)
 	case "psync":
@@ -269,6 +270,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}
 }
+
 func (s *Server) handlePropagation(cmdArr []string) {
 	for _, conn := range s.repConns {
 		cmd := SliceToBulkString(cmdArr)
@@ -277,5 +279,4 @@ func (s *Server) handlePropagation(cmdArr []string) {
 			log.Printf("An error occurred while sending propagations %v", err)
 		}
 	}
-
 }
