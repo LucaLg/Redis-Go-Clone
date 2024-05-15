@@ -70,8 +70,8 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 			i++
 			keys[keyIndex].val = string(keyString[i : i+valueLength])
 			i = i + valueLength + 1
+			keyIndex++
 		}
-		keyIndex++
 	}
 	fmt.Println(keys)
 	return keys, nil
