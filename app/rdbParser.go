@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"os"
+	"time"
 )
 
 type RdbParser struct {
@@ -35,7 +37,8 @@ func (r *RdbParser) ParseFile(s *Server) (string, error) {
 
 	keys := []string{}
 	for _, p := range keyValPairs {
-		s.Store.handleSet([]string{"set", p.key, p.val.value})
+		fmt.Printf("Key %s val %s \n", p.key, p.val.value)
+		s.Store.set(p.key, p.val)
 		keys = append(keys, p.key)
 	}
 	return SliceToBulkString(keys), nil
@@ -56,9 +59,15 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 	}
 	i := 2
 	mapLength := int(keyString[0])
-	keys := make([]KeyValPair, mapLength)
+	expireMapLength := int(keyString[1])
+	expirePairs := make([]KeyValPair, 0)
+	if expireMapLength > 0 {
+		expirePairs, i = r.parseExpirePairs(keyString, expireMapLength)
+	}
+
+	keys := make([]KeyValPair, mapLength-expireMapLength)
 	keyIndex := 0
-	for i < len(keyString) {
+	for i < len(keyString) && keyIndex < len(keys) {
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
@@ -74,7 +83,46 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 			keyIndex++
 		}
 	}
+	keys = append(keys, expirePairs...)
 	return keys, nil
+}
+func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int) {
+	pairs := make([]KeyValPair, l)
+	i := 3
+	keyIndex := 0
+	for keyIndex < l {
+		timestamp := keyString[i : i+8]
+		expiryTimeMs := binary.LittleEndian.Uint64(timestamp)
+		expireTimestamp := time.UnixMilli(int64(expiryTimeMs))
+		i += 8
+		valueType := int(keyString[i])
+		i++
+		if valueType == 0 {
+			keyLength := int(keyString[i])
+			i++
+			key := string(keyString[i : i+keyLength])
+			i += keyLength
+			valueLength := int(keyString[i])
+			i++
+			v := Value{
+				value:      string(keyString[i : i+valueLength]),
+				expireDate: expireTimestamp,
+				savedAt:    time.Now(),
+			}
+			if expireTimestamp.Before(time.Now()) {
+				// fmt.Printf("skipped %s with val %s because expre %v ", key, v.value, v.expireDate)
+				keyIndex++
+				i = i + valueLength + 1
+				continue
+			} else {
+				pairs[keyIndex].key = key
+				pairs[keyIndex].val = v
+			}
+			i = i + valueLength + 1
+			keyIndex++
+		}
+	}
+	return pairs, i
 }
 
 func (r *RdbParser) isValid(c []byte) bool {
