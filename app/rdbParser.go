@@ -51,40 +51,41 @@ func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
 		return []KeyValPair{}, err
 
 	}
-	keyString, err := s.ReadBytes(0xFF)
-	fmt.Println(keyString)
+	pairSec, err := s.ReadBytes(0xFF)
 	if err != nil {
 		return []KeyValPair{}, err
 
 	}
 	i := 2
-	mapLength := int(keyString[0])
-	expireMapLength := int(keyString[1])
-	expirePairs := make([]KeyValPair, 0)
-	if expireMapLength > 0 {
-		expirePairs, i = r.parseExpirePairs(keyString, expireMapLength)
+	hashLen := int(pairSec[0])
+	expHashLen := int(pairSec[1])
+	if expHashLen > 0 {
+		expPairs, i := r.parseExpirePairs(pairSec, expHashLen)
+		pairs := r.parsePairs(pairSec, hashLen-expHashLen, i)
+		return append(expPairs, pairs...), nil
+	} else {
+		return r.parsePairs(pairSec, hashLen-expHashLen, i), nil
 	}
-
-	keys := make([]KeyValPair, mapLength-expireMapLength)
+}
+func (r *RdbParser) parsePairs(pairSec []byte, pairLength int, i int) []KeyValPair {
+	pairs := make([]KeyValPair, pairLength)
 	keyIndex := 0
-	for i < len(keyString) && keyIndex < len(keys) {
-		valueType := int(keyString[i])
+	for i < len(pairSec) && keyIndex < len(pairs) {
+		valueType := int(pairSec[i])
 		i++
 		if valueType == 0 {
-			keyLength := int(keyString[i])
+			keyLength := int(pairSec[i])
 			i++
-			keys[keyIndex].key = string(keyString[i : i+keyLength])
+			pairs[keyIndex].key = string(pairSec[i : i+keyLength])
 			i += keyLength
-			valueLength := int(keyString[i])
+			valueLength := int(pairSec[i])
 			i++
-			keys[keyIndex].val.value = string(keyString[i : i+valueLength])
-			fmt.Println(keys)
+			pairs[keyIndex].val.value = string(pairSec[i : i+valueLength])
 			i = i + valueLength
 			keyIndex++
 		}
 	}
-	keys = append(keys, expirePairs...)
-	return keys, nil
+	return pairs
 }
 func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int) {
 	pairs := make([]KeyValPair, l)
