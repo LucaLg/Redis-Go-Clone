@@ -89,13 +89,11 @@ func (r *RdbParser) parsePairs(pairSec []byte, pairLength int, i int) []KeyValPa
 }
 func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int) {
 	pairs := make([]KeyValPair, l)
-	i := 3
+	i := 2
 	keyIndex := 0
 	for keyIndex < l {
-		timestamp := keyString[i : i+8]
-		expiryTimeMs := binary.LittleEndian.Uint64(timestamp)
-		expireTimestamp := time.UnixMilli(int64(expiryTimeMs))
-		i += 8
+		expireTimestamp, x := parseTimestamp(keyString, i)
+		i += x
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
@@ -124,6 +122,25 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 		}
 	}
 	return pairs, i
+}
+func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
+	var timestampLen int
+	if tsSlice[i] == 0xFD {
+		timestampLen = 4
+	} else {
+		timestampLen = 8
+	}
+	i++
+	timestamp := tsSlice[i : i+timestampLen]
+	expiryTimeMs := binary.LittleEndian.Uint64(timestamp)
+	var expireTimestamp time.Time
+	if timestampLen == 4 {
+		expireTimestamp = time.Unix(int64(expiryTimeMs), 0)
+	} else {
+		expireTimestamp = time.UnixMilli(int64(expiryTimeMs))
+	}
+	i += timestampLen
+	return expireTimestamp, i
 }
 
 func (r *RdbParser) isValid(c []byte) bool {
