@@ -28,9 +28,6 @@ type Server struct {
 
 	consMu   sync.Mutex
 	repConns []*net.Conn
-
-	rdbDir  string
-	rdbName string
 }
 
 func (s *Server) handleReplication() {
@@ -262,6 +259,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.psync(cmdArr, conn)
 	case "config":
 		return s.handleConfig(cmdArr)
+	case "type":
+		return s.handleType(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}

@@ -113,30 +113,45 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
-			keyLength := int(keyString[i])
-			i++
-			key := string(keyString[i : i+keyLength])
-			i += keyLength
-			valueLength := int(keyString[i])
-			i++
-			v := Value{
-				value:      string(keyString[i : i+valueLength]),
-				expireDate: expireTimestamp,
-				savedAt:    time.Now(),
-			}
+			// keyLength := int(keyString[i])
+			// i++
+			// key := string(keyString[i : i+keyLength])
+			// i += keyLength
+			// valueLength := int(keyString[i])
+			// i++
+			// v := Value{
+			// 	value:      string(keyString[i : i+valueLength]),
+			// 	expireDate: expireTimestamp,
+			// 	savedAt:    time.Now(),
+			// }
+			var pair KeyValPair
+			pair, i = parseKeyAndValue(keyString, i, expireTimestamp)
 			if expireTimestamp.Before(time.Now()) {
 				// fmt.Printf("skipped %s with val %s because expre %v ", key, v.value, v.expireDate)
 				keyIndex++
-				i = i + valueLength
 				continue
 			} else {
-				pairs[keyIndex] = KeyValPair{key: key, val: v}
+				pairs[keyIndex] = pair
 			}
-			i = i + valueLength
 			keyIndex++
 		}
 	}
 	return pairs, i
+}
+func parseKeyAndValue(pairSec []byte, i int, expTs time.Time) (KeyValPair, int) {
+	keyLength := int(pairSec[i])
+	i++
+	key := string(pairSec[i : i+keyLength])
+	i += keyLength
+	valueLength := int(pairSec[i])
+	i++
+	v := Value{
+		value:      string(pairSec[i : i+valueLength]),
+		expireDate: expTs,
+		savedAt:    time.Now(),
+	}
+	i += valueLength
+	return KeyValPair{key: key, val: v}, i
 }
 func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
 	var timestampLen int
@@ -159,5 +174,22 @@ func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
 }
 
 func (r *RdbParser) isValid(c []byte) bool {
-	return string(c[:5]) == RedisMagicString
+	if len(c) < 9 {
+		return false
+	}
+
+	//magic string
+	if string(c[:5]) != RedisMagicString {
+		return false
+	}
+
+	//version number
+	version := string(c[5:9])
+	for _, char := range version {
+		if char < '0' || char > '9' {
+			return false
+		}
+	}
+
+	return true
 }

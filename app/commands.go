@@ -5,8 +5,14 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 	"strings"
 	"time"
+)
+
+const (
+	typeString = "+string\r\n"
+	typeNone   = "+none\r\n"
 )
 
 func (s *Server) echo(cmdArr []string, conn net.Conn) string {
@@ -99,7 +105,7 @@ func (s *Server) handleRDBAndGetAck(c string, w io.Writer) error {
 }
 func (s *Server) handleConfig(cmdArr []string) (string, error) {
 	if len(cmdArr) < 2 {
-		return "", fmt.Errorf("Error handling config ")
+		return "", fmt.Errorf("error handling config ")
 	} else {
 		switch cmdArr[2] {
 		case "dir":
@@ -108,5 +114,21 @@ func (s *Server) handleConfig(cmdArr []string) (string, error) {
 			return SliceToBulkString([]string{"dbfilename", s.rdbParser.filename}), nil
 		}
 	}
-	return "", fmt.Errorf("No config message handled")
+	return "", fmt.Errorf("no config message handled")
+}
+func (s *Server) handleType(cmdArr []string) (string, error) {
+	if len(cmdArr) < 2 {
+		return "", fmt.Errorf("couldnt return type no key given")
+	}
+
+	val, err := s.Store.handleGet(cmdArr[1])
+	if err != nil || val == "$-1\r\n" {
+		return typeNone, nil
+	}
+
+	if reflect.TypeOf(val).String() == "string" {
+		return typeString, nil
+	}
+	return "", fmt.Errorf("couldnt get type of value")
+
 }
