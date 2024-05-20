@@ -18,42 +18,54 @@ type KeyValPair struct {
 	val Value
 }
 
+const (
+	RedisMagicString         = "REDIS"
+	RdbVersionNumber         = "0003"
+	ExpireSeconds            = 0xFD
+	ExpireMilliseconds       = 0xFC
+	HashTableResize          = 0xFB
+	EndOfFile                = 0xFF
+	ExpireSecondsLength      = 4
+	ExpireMillisecondsLength = 8
+)
+
 func (r *RdbParser) loadData(s *Server) {
-	r.ParseFile(s)
+	if err := r.ParseFile(s); err != nil {
+		fmt.Printf("Error loading data: %v\n", err)
+	}
 }
-func (r *RdbParser) ParseFile(s *Server) (string, error) {
+func (r *RdbParser) ParseFile(s *Server) error {
 	path := fmt.Sprintf("%s/%s", r.dir, r.filename)
 	c, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("error occured reading rdb file from path %s", path)
+		return fmt.Errorf("error occured reading rdb file from path %s", path)
 	}
 	if !r.isValid(c) {
-		return "", fmt.Errorf("the given file is not a valid rdb file")
+		return fmt.Errorf("the given file is not a valid rdb file")
 	}
 	keyValPairs, err := r.readKeys(c)
 	if err != nil {
-		return "", fmt.Errorf("error occured while reading keys %v", err)
+		return fmt.Errorf("error occured while reading keys %w", err)
 	}
 
 	keys := []string{}
 	for _, p := range keyValPairs {
-		fmt.Printf("Key %s val %s \n", p.key, p.val.value)
+		// fmt.Printf("Key %s val %s \n", p.key, p.val.value)
 		s.Store.set(p.key, p.val)
 		keys = append(keys, p.key)
 	}
-	return SliceToBulkString(keys), nil
+	return nil
 }
-func (r *RdbParser) readKeys(c []byte) ([]KeyValPair, error) {
-	reader := bytes.NewReader(c)
-	s := bufio.NewReader(reader)
-	_, err := s.ReadString(0xFB)
+func (r *RdbParser) readKeys(content []byte) ([]KeyValPair, error) {
+	reader := bytes.NewReader(content)
+	bufReader := bufio.NewReader(reader)
+	_, err := bufReader.ReadString(HashTableResize)
 	if err != nil {
-		return []KeyValPair{}, err
-
+		return nil, fmt.Errorf("error reading hash table resize: %w", err)
 	}
-	pairSec, err := s.ReadBytes(0xFF)
+	pairSec, err := bufReader.ReadBytes(0xFF)
 	if err != nil {
-		return []KeyValPair{}, err
+		return nil, fmt.Errorf("error reading key-value pairs: %w", err)
 
 	}
 	i := 2
@@ -71,16 +83,20 @@ func (r *RdbParser) parsePairs(pairSec []byte, pairLength int, i int) []KeyValPa
 	pairs := make([]KeyValPair, pairLength)
 	keyIndex := 0
 	for i < len(pairSec) && keyIndex < len(pairs) {
+		if i >= len(pairSec) {
+			break
+		}
 		valueType := int(pairSec[i])
 		i++
 		if valueType == 0 {
 			keyLength := int(pairSec[i])
 			i++
-			pairs[keyIndex].key = string(pairSec[i : i+keyLength])
+			key := string(pairSec[i : i+keyLength])
 			i += keyLength
 			valueLength := int(pairSec[i])
 			i++
-			pairs[keyIndex].val.value = string(pairSec[i : i+valueLength])
+			value := string(pairSec[i : i+valueLength])
+			pairs[keyIndex] = KeyValPair{key: key, val: Value{value: value}}
 			i = i + valueLength
 			keyIndex++
 		}
@@ -93,7 +109,7 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 	keyIndex := 0
 	for keyIndex < l {
 		expireTimestamp, x := parseTimestamp(keyString, i)
-		i += x
+		i = x
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
@@ -111,13 +127,12 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 			if expireTimestamp.Before(time.Now()) {
 				// fmt.Printf("skipped %s with val %s because expre %v ", key, v.value, v.expireDate)
 				keyIndex++
-				i = i + valueLength + 1
+				i = i + valueLength
 				continue
 			} else {
-				pairs[keyIndex].key = key
-				pairs[keyIndex].val = v
+				pairs[keyIndex] = KeyValPair{key: key, val: v}
 			}
-			i = i + valueLength + 1
+			i = i + valueLength
 			keyIndex++
 		}
 	}
@@ -125,10 +140,10 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 }
 func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
 	var timestampLen int
-	if tsSlice[i] == 0xFD {
-		timestampLen = 4
+	if tsSlice[i] == ExpireSeconds {
+		timestampLen = ExpireSecondsLength
 	} else {
-		timestampLen = 8
+		timestampLen = ExpireMillisecondsLength
 	}
 	i++
 	timestamp := tsSlice[i : i+timestampLen]
@@ -144,5 +159,5 @@ func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
 }
 
 func (r *RdbParser) isValid(c []byte) bool {
-	return string(c[:5]) == "REDIS"
+	return string(c[:5]) == RedisMagicString
 }
