@@ -13,6 +13,7 @@ import (
 const (
 	typeString = "+string\r\n"
 	typeNone   = "+none\r\n"
+	typeStream = "+stream\r\n"
 )
 
 func (s *Server) echo(cmdArr []string, conn net.Conn) string {
@@ -121,14 +122,37 @@ func (s *Server) handleType(cmdArr []string) (string, error) {
 		return "", fmt.Errorf("couldnt return type no key given")
 	}
 
-	val, err := s.Store.handleGet(cmdArr[1])
-	if err != nil || val == "$-1\r\n" {
+	stringVal, exists := s.Store.Data[cmdArr[1]]
+	fmt.Println("String value", (stringVal))
+	if exists && reflect.TypeOf(stringVal).String() == "main.Value" {
+		return typeString, nil
+	}
+	streamVal, exists := s.Store.Streams[cmdArr[1]]
+	fmt.Println(reflect.TypeOf(streamVal).String())
+	if exists && reflect.TypeOf(streamVal).String() == "main.Stream" {
+		return typeStream, nil
+	}
+	if !exists {
 		return typeNone, nil
 	}
 
-	if reflect.TypeOf(val).String() == "string" {
-		return typeString, nil
-	}
 	return "", fmt.Errorf("couldnt get type of value")
 
+}
+func (s *Server) handleXADD(cmdArr []string) (string, error) {
+	if len(cmdArr) < 3 {
+		return "", fmt.Errorf("couldnt save stream with no key")
+	}
+	pairs := make([]KeyValPair, 0)
+	var p KeyValPair
+	for i := 3; i < len(cmdArr); i++ {
+		if i%2 == 0 {
+			p.val.value = cmdArr[i]
+			pairs = append(pairs, p)
+		} else {
+			p.key = cmdArr[i]
+		}
+	}
+	id := s.Store.storeStream(cmdArr[2], cmdArr[1], pairs)
+	return id, nil
 }

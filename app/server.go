@@ -111,8 +111,8 @@ func (s *Server) handshake() (net.Conn, error) {
 
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
-	rdbDir := flag.String("dir", "/tmp/redis-files ", "Specify a filepath where the rdb file is stored")
-	rdbfileName := flag.String("dbfilename", "dump.rdb", "Specify a filename for the rdb ")
+	rdbDir := flag.String("dir", "", "Specify a filepath where the rdb file is stored")
+	rdbfileName := flag.String("dbfilename", "", "Specify a filename for the rdb ")
 	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
 	flag.Parse()
 	s.rdbParser.dir = *rdbDir
@@ -128,14 +128,17 @@ func (s *Server) start() (net.Listener, error) {
 
 func main() {
 	store := &Store{
-		Mutex: sync.Mutex{},
-		Data:  make(map[string]Value),
+		Mutex:   sync.Mutex{},
+		Data:    make(map[string]Value),
+		Streams: make(map[string]Stream),
 	}
 	server := Server{
 		Store: store,
 	}
 	l, err := server.start()
-	server.rdbParser.loadData(&server)
+	if server.rdbParser.dir != "" && server.rdbParser.filename != "" {
+		server.rdbParser.loadData(&server)
+	}
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
 		os.Exit(1)
@@ -261,6 +264,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.handleConfig(cmdArr)
 	case "type":
 		return s.handleType(cmdArr)
+	case "xadd":
+		return s.handleXADD(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}

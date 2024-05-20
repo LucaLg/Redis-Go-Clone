@@ -7,14 +7,19 @@ import (
 )
 
 type Store struct {
-	Mutex sync.Mutex
-	Data  map[string]Value
+	Mutex   sync.Mutex
+	Data    map[string]Value
+	Streams map[string]Stream
 }
 
 type Value struct {
 	value      string
 	savedAt    time.Time
 	expireDate time.Time
+}
+type Stream struct {
+	id    string
+	pairs []KeyValPair
 }
 
 func (s *Store) handleGet(key string) (string, error) {
@@ -64,4 +69,14 @@ func (s *Store) getKeys() []string {
 		i++
 	}
 	return keys
+}
+func (s *Store) storeStream(id string, key string, pairs []KeyValPair) string {
+	val, exists := s.Streams[key]
+	if !exists {
+		stream := Stream{id: id, pairs: pairs}
+		s.Streams[key] = stream
+	} else {
+		val.pairs = append(val.pairs, pairs...)
+	}
+	return fmt.Sprintf("+%s\r\n", s.Streams[key].id)
 }
