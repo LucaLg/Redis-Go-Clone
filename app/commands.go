@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"reflect"
 	"strings"
 	"time"
 )
@@ -121,15 +120,14 @@ func (s *Server) handleType(cmdArr []string) (string, error) {
 	if len(cmdArr) < 2 {
 		return "", fmt.Errorf("couldnt return type no key given")
 	}
-
-	stringVal, exists := s.Store.Data[cmdArr[1]]
-	fmt.Println("String value", (stringVal))
-	if exists && reflect.TypeOf(stringVal).String() == "main.Value" {
+	// If it exists in Data Map it is a string
+	_, exists := s.Store.Data[cmdArr[1]]
+	if exists {
 		return typeString, nil
 	}
-	streamVal, exists := s.Store.Streams[cmdArr[1]]
-	fmt.Println(reflect.TypeOf(streamVal).String())
-	if exists && reflect.TypeOf(streamVal).String() == "main.Stream" {
+	// If it exists in Stream Map it is a stream
+	_, exists = s.Store.Stream[cmdArr[1]]
+	if exists {
 		return typeStream, nil
 	}
 	if !exists {

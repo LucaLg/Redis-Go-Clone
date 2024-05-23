@@ -2,14 +2,16 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 type Store struct {
-	Mutex   sync.Mutex
-	Data    map[string]Value
-	Streams map[string]Stream
+	Mutex  sync.Mutex
+	Data   map[string]Value
+	Stream map[string][]Entry
 }
 
 type Value struct {
@@ -17,7 +19,7 @@ type Value struct {
 	savedAt    time.Time
 	expireDate time.Time
 }
-type Stream struct {
+type Entry struct {
 	id    string
 	pairs []KeyValPair
 }
@@ -71,12 +73,62 @@ func (s *Store) getKeys() []string {
 	return keys
 }
 func (s *Store) storeStream(id string, key string, pairs []KeyValPair) string {
-	val, exists := s.Streams[key]
-	if !exists {
-		stream := Stream{id: id, pairs: pairs}
-		s.Streams[key] = stream
+	entries, exists := s.Stream[key]
+	entry := Entry{id: id, pairs: pairs}
+	if !exists || len(entries) == 0 || id == "0-0" {
+		validID, err := checkID(id, "0-0")
+		errmsg := "ERR The ID specified in XADD must be greater than 0-0"
+		if !validID || err != nil {
+			return fmt.Sprintf("-%s\r\n", errmsg)
+		}
+		s.Stream[key] = []Entry{entry}
 	} else {
-		val.pairs = append(val.pairs, pairs...)
+		lastID := entries[len(entries)-1].id
+		validID, err := checkID(id, lastID)
+		errmsg := "ERR The ID specified in XADD is equal or smaller than the target stream top item"
+		if !validID || err != nil {
+			return fmt.Sprintf("-%s\r\n", errmsg)
+		}
+		s.Stream[key] = append(entries, entry)
 	}
-	return fmt.Sprintf("+%s\r\n", s.Streams[key].id)
+	return fmt.Sprintf("+%s\r\n", id)
+}
+func checkID(id string, lastId string) (bool, error) {
+	msID, seqID, err := getNumValueOfID(id)
+	if err != nil {
+		return false, err
+	}
+	msLastID, seqLastID, err := getNumValueOfID(lastId)
+	if err != nil {
+		return false, err
+	}
+	// lastID is 0-0 when there is no entry eg. the given id is the firs id
+	if lastId == "0-0" {
+		return msID > 0 || seqID > 0, nil
+	} else {
+		if msID < msLastID {
+			return false, nil
+		} else {
+			if msID == msLastID {
+				return seqID > seqLastID, nil
+			} else {
+				return true, nil
+			}
+		}
+	}
+}
+func getNumValueOfID(id string) (int, int, error) {
+	nums := strings.Split(id, "-")
+	if len(nums) != 2 {
+		return -1, -1, fmt.Errorf("id was given in a false format")
+	}
+	ms, err := strconv.Atoi(nums[0])
+	if err != nil {
+		return -1, -1, fmt.Errorf("seconds couldnt be parsed  ")
+	}
+	seq, err := strconv.Atoi(nums[1])
+	if err != nil {
+		return -1, -1, fmt.Errorf("ms couldnt be parsed  ")
+	}
+	return ms, seq, nil
 }

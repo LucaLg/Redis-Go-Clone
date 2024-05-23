@@ -128,9 +128,9 @@ func (s *Server) start() (net.Listener, error) {
 
 func main() {
 	store := &Store{
-		Mutex:   sync.Mutex{},
-		Data:    make(map[string]Value),
-		Streams: make(map[string]Stream),
+		Mutex:  sync.Mutex{},
+		Data:   make(map[string]Value),
+		Stream: make(map[string][]Entry),
 	}
 	server := Server{
 		Store: store,
