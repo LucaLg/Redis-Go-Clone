@@ -142,7 +142,7 @@ func checkID(id string, lastId string) (bool, string, error) {
 func genID(id string, lastID string) (string, error) {
 	if len(id) == 1 {
 		timestamp := time.Now().UnixMilli()
-		return fmt.Sprintf("%d-%s", timestamp, 0), nil
+		return fmt.Sprintf("%d-%s", timestamp, "0"), nil
 	}
 	parts := strings.Split(id, "-")
 	partsLast := strings.Split(lastID, "-")
