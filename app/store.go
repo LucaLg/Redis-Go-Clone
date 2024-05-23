@@ -75,6 +75,9 @@ func (s *Store) getKeys() []string {
 func (s *Store) storeStream(id string, key string, pairs []KeyValPair) string {
 	entries, exists := s.Stream[key]
 	entry := Entry{id: id, pairs: pairs}
+	if id == "*" {
+		id, _ = genID(id, "")
+	}
 	if !exists || len(entries) == 0 || id == "0-0" {
 		validID, validatedID, err := checkID(id, "0-0")
 		entry.id = validatedID
@@ -84,12 +87,9 @@ func (s *Store) storeStream(id string, key string, pairs []KeyValPair) string {
 		}
 		s.Stream[key] = []Entry{entry}
 	} else {
-		// lastID := entries[len(entries)-1].id
 		lastID := findLastID(id, entries)
-		fmt.Println("Last ID Found: ", lastID)
 		validID, validatedID, err := checkID(id, lastID)
 		errmsg := "ERR The ID specified in XADD is equal or smaller than the target stream top item"
-		fmt.Println("Valid id ", validatedID)
 		if !validID || err != nil {
 			return fmt.Sprintf("-%s\r\n", errmsg)
 		}
@@ -140,6 +140,10 @@ func checkID(id string, lastId string) (bool, string, error) {
 	}
 }
 func genID(id string, lastID string) (string, error) {
+	if len(id) == 1 {
+		timestamp := time.Now().UnixMilli()
+		return fmt.Sprintf("%d-%s", timestamp, 0), nil
+	}
 	parts := strings.Split(id, "-")
 	partsLast := strings.Split(lastID, "-")
 	if parts[1] == "*" {
