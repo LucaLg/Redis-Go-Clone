@@ -266,6 +266,8 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.handleType(cmdArr)
 	case "xadd":
 		return s.handleXADD(cmdArr)
+	case "xrange":
+		return s.handleXRANGE(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
 	}

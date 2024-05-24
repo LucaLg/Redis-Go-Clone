@@ -154,3 +154,10 @@ func (s *Server) handleXADD(cmdArr []string) (string, error) {
 	id := s.Store.storeStream(cmdArr[2], cmdArr[1], pairs)
 	return id, nil
 }
+func (s *Server) handleXRANGE(cmdArr []string) (string, error) {
+	if len(cmdArr) < 4 {
+		return "", fmt.Errorf("no valid range given")
+	}
+	s.Store.getEntriesOfRange(cmdArr[1], cmdArr[2], cmdArr[3])
+	return "", nil
+}

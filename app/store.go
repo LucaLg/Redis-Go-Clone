@@ -179,3 +179,52 @@ func getNumValueOfID(id string) (int, int, error) {
 	}
 	return ms, seq, nil
 }
+func (s *Store) getEntriesOfRange(key string, from string, to string) (string, error) {
+	entries, exists := s.Stream[key]
+	eInRange := []Entry{}
+	if !exists {
+		return "", fmt.Errorf("there is no stream for given key")
+	}
+	fromTs, fromSeq, err := splitID(from)
+	if err != nil {
+		return "", err
+	}
+	toTs, toSeq, err := splitID(to)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		eTS, eSeq, err := splitID(e.id)
+		if err != nil {
+			return "", err
+		}
+		if eTS >= fromTs && eTS <= toTs {
+			if fromSeq != -1 && toSeq != -1 {
+				if fromSeq <= eSeq && eSeq <= toSeq {
+					eInRange = append(eInRange, e)
+				}
+			} else {
+				eInRange = append(eInRange, e)
+			}
+		}
+	}
+	fmt.Println(eInRange)
+	return "", nil
+
+}
+func splitID(id string) (int, int, error) {
+	parts := strings.Split(id, "-")
+	ts, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return -1, -1, fmt.Errorf("timestamp couldnt be parsed")
+	}
+	if len(parts) == 1 {
+		return ts, -1, nil
+	}
+	seq, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return ts, -1, fmt.Errorf("sequence number couldnt be parsed")
+	}
+
+	return ts, seq, nil
+}
