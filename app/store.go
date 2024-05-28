@@ -189,6 +189,9 @@ func (s *Store) getEntriesOfRange(key string, from string, to string) (string, e
 	if !exists {
 		return "", fmt.Errorf("there is no stream for given key")
 	}
+	if from == "-" {
+		return handleFromBlank(entries, eInRange, to)
+	}
 	fromTs, fromSeq, err := splitID(from)
 	if err != nil {
 		return "", err
@@ -216,6 +219,31 @@ func (s *Store) getEntriesOfRange(key string, from string, to string) (string, e
 	fmt.Println(res)
 	return res, nil
 }
+func handleFromBlank(entries []Entry, inRange []Entry, to string) (string, error) {
+	toTs, toSeq, err := splitID(to)
+	if err != nil {
+		return "", err
+	}
+	for _, e := range entries {
+		eTS, eSeq, err := splitID(e.id)
+		if err != nil {
+			return "", err
+		}
+		if eTS <= toTs {
+			if toSeq != -1 {
+				if eSeq <= toSeq {
+					inRange = append(inRange, e)
+				}
+			} else {
+				inRange = append(inRange, e)
+			}
+		}
+	}
+	res := StreamEntriesToBulkString(inRange)
+	fmt.Println(res)
+	return res, nil
+}
+
 func splitID(id string) (int, int, error) {
 	parts := strings.Split(id, "-")
 	ts, err := strconv.Atoi(parts[0])
