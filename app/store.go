@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -192,10 +193,15 @@ func (s *Store) getEntriesOfRange(key string, from string, to string) (string, e
 	if from == "-" {
 		return handleFromBlank(entries, eInRange, to)
 	}
+
 	fromTs, fromSeq, err := splitID(from)
 	if err != nil {
 		return "", err
 	}
+	if to == "+" {
+		return handleToBlank(entries, eInRange, fromTs, fromSeq)
+	}
+
 	toTs, toSeq, err := splitID(to)
 	if err != nil {
 		return "", err
@@ -240,10 +246,30 @@ func handleFromBlank(entries []Entry, inRange []Entry, to string) (string, error
 		}
 	}
 	res := StreamEntriesToBulkString(inRange)
-	fmt.Println(res)
 	return res, nil
 }
 
+func handleToBlank(entries []Entry, inRange []Entry, fromTs int, fromSeq int) (string, error) {
+	for i, e := range entries {
+		eTS, eSeq, err := splitID(e.id)
+		if err != nil {
+			return "", err
+		}
+		if eTS >= fromTs {
+			if fromSeq != -1 {
+				if fromSeq <= eSeq {
+					inRange = slices.Concat(inRange, entries[i:])
+					break
+				}
+			} else {
+				inRange = slices.Concat(inRange, entries[i:])
+				break
+			}
+		}
+	}
+	res := StreamEntriesToBulkString(inRange)
+	return res, nil
+}
 func splitID(id string) (int, int, error) {
 	parts := strings.Split(id, "-")
 	ts, err := strconv.Atoi(parts[0])
