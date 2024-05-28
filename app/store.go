@@ -21,7 +21,11 @@ type Value struct {
 }
 type Entry struct {
 	id    string
-	pairs []KeyValPair
+	pairs []EntryPair
+}
+type EntryPair struct {
+	key string
+	val string
 }
 
 func (s *Store) handleGet(key string) (string, error) {
@@ -66,13 +70,13 @@ func (s *Store) set(key string, val Value) {
 func (s *Store) getKeys() []string {
 	keys := make([]string, len(s.Data))
 	i := 0
-	for v, _ := range s.Data {
+	for v := range s.Data {
 		keys[i] = v
 		i++
 	}
 	return keys
 }
-func (s *Store) storeStream(id string, key string, pairs []KeyValPair) string {
+func (s *Store) storeStream(id string, key string, pairs []EntryPair) string {
 	entries, exists := s.Stream[key]
 	entry := Entry{id: id, pairs: pairs}
 	if id == "*" {
@@ -208,9 +212,9 @@ func (s *Store) getEntriesOfRange(key string, from string, to string) (string, e
 			}
 		}
 	}
-	fmt.Println(eInRange)
-	return "", nil
-
+	res := StreamEntriesToBulkString(eInRange)
+	fmt.Println(res)
+	return res, nil
 }
 func splitID(id string) (int, int, error) {
 	parts := strings.Split(id, "-")

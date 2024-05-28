@@ -141,11 +141,11 @@ func (s *Server) handleXADD(cmdArr []string) (string, error) {
 	if len(cmdArr) < 3 {
 		return "", fmt.Errorf("couldnt save stream with no key")
 	}
-	pairs := make([]KeyValPair, 0)
-	var p KeyValPair
+	pairs := make([]EntryPair, 0)
+	var p EntryPair
 	for i := 3; i < len(cmdArr); i++ {
 		if i%2 == 0 {
-			p.val.value = cmdArr[i]
+			p.val = cmdArr[i]
 			pairs = append(pairs, p)
 		} else {
 			p.key = cmdArr[i]
@@ -158,6 +158,9 @@ func (s *Server) handleXRANGE(cmdArr []string) (string, error) {
 	if len(cmdArr) < 4 {
 		return "", fmt.Errorf("no valid range given")
 	}
-	s.Store.getEntriesOfRange(cmdArr[1], cmdArr[2], cmdArr[3])
-	return "", nil
+	res, err := s.Store.getEntriesOfRange(cmdArr[1], cmdArr[2], cmdArr[3])
+	if err != nil {
+		return "", err
+	}
+	return res, nil
 }
