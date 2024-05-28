@@ -164,3 +164,14 @@ func (s *Server) handleXRANGE(cmdArr []string) (string, error) {
 	}
 	return res, nil
 }
+func (s *Server) handleXREAD(cmdArr []string) (string, error) {
+
+	if len(cmdArr) < 4 {
+		return "", fmt.Errorf("no valid input")
+	}
+	res, err := s.Store.readRange(cmdArr[2], cmdArr[3])
+	if err != nil {
+		return "", err
+	}
+	return res, nil
+}

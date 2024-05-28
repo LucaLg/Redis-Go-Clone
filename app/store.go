@@ -286,3 +286,43 @@ func splitID(id string) (int, int, error) {
 
 	return ts, seq, nil
 }
+func (s *Store) readRange(key string, id string) (string, error) {
+	entries, exists := s.Stream[key]
+	InRange := []Entry{}
+	if !exists {
+		return "", fmt.Errorf("there is no stream for given key")
+	}
+	for _, e := range entries {
+		g, err := idGreateThen(e.id, id)
+		if err != nil {
+			return "", fmt.Errorf("coulndt compare ids")
+		}
+		if g {
+			InRange = append(InRange, e)
+		}
+	}
+	fmt.Println(InRange)
+	entryString := StreamEntriesToBulkString(InRange)
+	keyString := StringToBulkString(key)
+	res := fmt.Sprintf("*1\r\n*2\r\n%s%s", keyString, entryString)
+	return res, nil
+
+}
+func idGreateThen(idOne string, idTwo string) (bool, error) {
+	oneTs, oneSeq, err := splitID(idOne)
+	if err != nil {
+		return false, fmt.Errorf("couldnt parse idOne")
+	}
+	twoTs, twoSeq, err := splitID(idTwo)
+	if err != nil {
+		return false, fmt.Errorf("couldnt parse idTwo")
+	}
+	if oneTs >= twoTs {
+		if oneSeq != -1 && twoSeq != -1 {
+			return oneSeq >= twoSeq, nil
+		} else {
+			return true, nil
+		}
+	}
+	return false, nil
+}
