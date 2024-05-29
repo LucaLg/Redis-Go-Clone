@@ -169,8 +169,10 @@ func (s *Server) handleXREAD(cmdArr []string) (string, error) {
 	if len(cmdArr) < 4 {
 		return "", fmt.Errorf("no valid input")
 	}
-	res, err := s.Store.readRange(cmdArr[2], cmdArr[3])
+	split := (len(cmdArr) - 2) / 2
+	res, err := s.Store.readMultipleStreams(cmdArr[2:split+2], cmdArr[2+split:])
 	if err != nil {
+
 		return "", err
 	}
 	return res, nil

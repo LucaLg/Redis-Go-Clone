@@ -301,12 +301,25 @@ func (s *Store) readRange(key string, id string) (string, error) {
 			InRange = append(InRange, e)
 		}
 	}
-	fmt.Println(InRange)
 	entryString := StreamEntriesToBulkString(InRange)
 	keyString := StringToBulkString(key)
-	res := fmt.Sprintf("*1\r\n*2\r\n%s%s", keyString, entryString)
+	res := fmt.Sprintf("*2\r\n%s%s", keyString, entryString)
 	return res, nil
 
+}
+func (s *Store) readMultipleStreams(keys []string, ids []string) (string, error) {
+	res := ""
+	i := 0
+	for i < len(keys) {
+		streamString, err := s.readRange(keys[i], ids[i])
+		if err != nil {
+			return "", err
+		}
+		res = fmt.Sprintf("%s%s", res, streamString)
+		i++
+	}
+	res = fmt.Sprintf("*%d\r\n%s", i, res)
+	return res, nil
 }
 func idGreateThen(idOne string, idTwo string) (bool, error) {
 	oneTs, oneSeq, err := splitID(idOne)
