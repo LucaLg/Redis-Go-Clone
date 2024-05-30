@@ -47,6 +47,18 @@ func (p *Parser) Parse(input []byte, s *Server) ([]string, error) {
 	}
 	return cmds, nil
 }
+func (p *Parser) parseMultipleCmds(input []byte, s *Server) ([][]byte, error) {
+	inputs := make([][]byte, 0)
+	var lastStartIndex = 0
+	for i := 0; i < len(input); i++ {
+		if i != 0 && isValidCommandStart(input, i) {
+			inputs = append(inputs, input[lastStartIndex:i])
+			lastStartIndex = i
+		}
+	}
+	inputs = append(inputs, input[lastStartIndex:])
+	return inputs, nil
+}
 
 /*
 ParseReplication gets an []byte as input

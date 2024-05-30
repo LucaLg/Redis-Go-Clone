@@ -214,6 +214,10 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			fmt.Printf("Got offset: %d\n", s.replication.offset)
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
+			v, err := s.Parser.parseMultipleCmds(buf[:i], s)
+			for _, cmd := range v {
+				fmt.Println("Length of cmd", len(cmd))
+			}
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
 			fmt.Println(cmds)
 			if err != nil {
