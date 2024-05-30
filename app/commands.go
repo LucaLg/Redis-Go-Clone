@@ -189,34 +189,43 @@ func (s *Server) handleXREAD(cmdArr []string) (string, error) {
 			fmt.Println("error parsing block time ", err)
 			return "", err
 		}
+		if id == "$" {
+			id = s.Store.getLastEntryID(key)
+		}
+		var res string
 		if blockTime == 0 {
-			res, err := s.blockWithNull(key, id)
+			res, err = s.blockWithNull(key, id)
 			if err != nil {
 				return "", err
 			}
-			return res, nil
 		}
 		if blockTime > 0 {
-			res, err := s.blockWithTime(blockTime, key, id)
+			res, err = s.blockWithTime(blockTime, key, id)
 			if err != nil {
 				return "", err
 			}
-			return res, nil
 		}
+		return modifyXReadResponse(res)
 	}
 	if cmdArr[1] == "streams" {
 		split := (len(cmdArr) - 2) / 2
 		res, err := s.Store.readMultipleStreams(cmdArr[2:split+2], cmdArr[2+split:])
 		if err != nil {
-
 			return "", err
 		}
 		return res, nil
 	}
 	return "", nil
 }
+func modifyXReadResponse(input string) (string, error) {
+	if input == "" {
+		return "$-1\r\n", nil
+	} else {
+		input = fmt.Sprintf("*%d\r\n%s", 1, input)
+		return input, nil
+	}
+}
 func (s *Server) blockWithNull(key string, id string) (string, error) {
-
 	firstRes, err := s.Store.readRange(key, id)
 	if err != nil {
 		fmt.Println("error reading multiple streams ", err)
@@ -229,12 +238,11 @@ func (s *Server) blockWithNull(key string, id string) (string, error) {
 			return "", err
 		}
 		if res != firstRes {
-			res = fmt.Sprintf("*%d\r\n%s", 1, res)
 			return res, nil
 		}
 	}
-
 }
+
 func (s *Server) blockWithTime(blockTime int, key string, id string) (string, error) {
 	time.Sleep(time.Duration(blockTime) * time.Millisecond)
 	res, err := s.Store.readRange(key, id)
@@ -242,10 +250,5 @@ func (s *Server) blockWithTime(blockTime int, key string, id string) (string, er
 		fmt.Println("error reading multiple streams ", err)
 		return "", err
 	}
-	if res == "" {
-		return "$-1\r\n", nil
-	} else {
-		res = fmt.Sprintf("*%d\r\n%s", 1, res)
-		return res, nil
-	}
+	return res, nil
 }

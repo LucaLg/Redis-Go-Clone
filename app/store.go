@@ -291,6 +291,15 @@ func splitID(id string) (int, int, error) {
 
 	return ts, seq, nil
 }
+func (s *Store) getLastEntryID(key string) string {
+	s.StreamMu.Lock()
+	defer s.StreamMu.Unlock()
+	entries, exists := s.Stream[key]
+	if !exists {
+		return "0-0"
+	}
+	return entries[len(entries)-1].id
+}
 func (s *Store) readRange(key string, id string) (string, error) {
 	s.StreamMu.Lock()
 	defer s.StreamMu.Unlock()
