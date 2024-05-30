@@ -172,6 +172,13 @@ func (s *Server) handleXREAD(cmdArr []string) (string, error) {
 	}
 	if cmdArr[1] == "block" {
 		fmt.Println("key id ", cmdArr[4])
+		key := ""
+		id := ""
+		if len(cmdArr) == 5 {
+			splits := strings.Split(cmdArr[5], " ")
+			key = splits[0]
+			id = splits[1]
+		}
 		blockTime, err := strconv.Atoi(cmdArr[2])
 		if err != nil {
 			fmt.Println("error parsing block time ", err)
@@ -182,7 +189,7 @@ func (s *Server) handleXREAD(cmdArr []string) (string, error) {
 		t := time.Now().Add(bt)
 		response := ""
 		for time.Now().Before(t) {
-			res, err := s.Store.readRange(cmdArr[4], cmdArr[5])
+			res, err := s.Store.readRange(key, id)
 			if err != nil {
 				fmt.Println("error reading multiple streams ", err)
 				return "", err
