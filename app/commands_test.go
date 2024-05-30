@@ -37,7 +37,7 @@ func TestCommand(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			psyncRes, err := s.psync([]string{}, serverConn)
+			psyncRes, err := s.handlePsync([]string{}, serverConn)
 			if err != nil {
 				t.Fatalf("Error while writing")
 			}

@@ -17,6 +17,26 @@ type Replication struct {
 	HOST_PORT string
 	offset    int
 }
+
+const (
+	CommandEcho     = "echo"
+	CommandPing     = "ping"
+	CommandOK       = "+ok"
+	CommandCommand  = "command"
+	CommandWait     = "wait"
+	CommandSet      = "set"
+	CommandGet      = "get"
+	CommandInfo     = "info"
+	CommandKeys     = "keys"
+	CommandReplconf = "replconf"
+	CommandPsync    = "psync"
+	CommandConfig   = "config"
+	CommandType     = "type"
+	CommandXAdd     = "xadd"
+	CommandXRange   = "xrange"
+	CommandXRead    = "xread"
+)
+
 type Server struct {
 	addr        string
 	status      string
@@ -239,38 +259,37 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return "", fmt.Errorf("Command Array is empty")
 	}
 	switch strings.ToLower(cmdArr[0]) {
-	case "echo":
-		return s.echo(cmdArr, conn), nil
-	case "ping":
-		return "+PONG\r\n", nil
-	case "+ok":
+	case CommandEcho:
+		return s.handleEcho(cmdArr, conn), nil
+	case CommandPing:
+		return s.handlePing(), nil
+	case CommandOK:
 		return "", nil
-	case "command":
-		return "+PONG\r\n", nil
-	case "wait":
-		return fmt.Sprintf(":%d\r\n", len(s.repConns)), nil
-	case "set":
-		fmt.Println(cmdArr)
-		return s.set(cmdArr, conn)
-	case "get":
-		return s.get(cmdArr, conn)
-	case "info":
-		return s.info(cmdArr), nil
-	case "keys":
-		return SliceToBulkString(s.Store.getKeys()), nil
-	case "replconf":
-		return s.replconf(cmdArr)
-	case "psync":
-		return s.psync(cmdArr, conn)
-	case "config":
+	case CommandCommand:
+		return s.handleCommdand()
+	case CommandWait:
+		return s.handleWait()
+	case CommandSet:
+		return s.handleSet(cmdArr, conn)
+	case CommandGet:
+		return s.handleGet(cmdArr, conn)
+	case CommandInfo:
+		return s.handleInfo(cmdArr)
+	case CommandKeys:
+		return s.handleKeys()
+	case CommandReplconf:
+		return s.handleReplconf(cmdArr)
+	case CommandPsync:
+		return s.handlePsync(cmdArr, conn)
+	case CommandConfig:
 		return s.handleConfig(cmdArr)
-	case "type":
+	case CommandType:
 		return s.handleType(cmdArr)
-	case "xadd":
+	case CommandXAdd:
 		return s.handleXADD(cmdArr)
-	case "xrange":
+	case CommandXRange:
 		return s.handleXRANGE(cmdArr)
-	case "xread":
+	case CommandXRead:
 		return s.handleXREAD(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
