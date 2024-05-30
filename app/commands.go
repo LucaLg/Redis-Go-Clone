@@ -166,42 +166,28 @@ func (s *Server) handleXRANGE(cmdArr []string) (string, error) {
 	return res, nil
 }
 func (s *Server) handleXREAD(cmdArr []string) (string, error) {
-
 	if len(cmdArr) < 4 {
 		return "", fmt.Errorf("no valid input")
 	}
 	if cmdArr[1] == "block" {
-		fmt.Println("key id ", cmdArr[4])
-		key := ""
-		id := ""
-		if len(cmdArr) == 5 {
-			splits := strings.Split(cmdArr[5], " ")
-			key = splits[0]
-			id = splits[1]
-		}
+		key := cmdArr[4]
+		id := cmdArr[5]
 		blockTime, err := strconv.Atoi(cmdArr[2])
 		if err != nil {
 			fmt.Println("error parsing block time ", err)
 			return "", err
 		}
-		// splitIndex := (len(cmdArr) - 4) / 2
-		bt := time.Duration(blockTime) * time.Millisecond
-		t := time.Now().Add(bt)
-		response := ""
-		for time.Now().Before(t) {
-			res, err := s.Store.readRange(key, id)
-			if err != nil {
-				fmt.Println("error reading multiple streams ", err)
-				return "", err
-			}
-			if res != "" {
-				response = res
-			}
+		time.Sleep(time.Duration(blockTime) * time.Millisecond)
+		res, err := s.Store.readRange(key, id)
+		if err != nil {
+			fmt.Println("error reading multiple streams ", err)
+			return "", err
 		}
-		if response == "" {
+		if res == "" {
 			return "$-1\r\n", nil
 		} else {
-			return response, nil
+			res = fmt.Sprintf("*%d\r\n%s", 1, res)
+			return res, nil
 		}
 	}
 	if cmdArr[1] == "streams" {
