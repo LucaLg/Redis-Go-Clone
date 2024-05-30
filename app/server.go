@@ -108,6 +108,15 @@ func (s *Server) handshake() (net.Conn, error) {
 	fmt.Println("Handshake finished")
 	return conn, nil
 }
+func newServer() *Server {
+	return &Server{
+		Store: &Store{
+			Mutex:  sync.Mutex{},
+			Data:   make(map[string]Value),
+			Stream: make(map[string][]Entry),
+		},
+	}
+}
 
 func (s *Server) start() (net.Listener, error) {
 	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
@@ -127,17 +136,10 @@ func (s *Server) start() (net.Listener, error) {
 }
 
 func main() {
-	store := &Store{
-		Mutex:  sync.Mutex{},
-		Data:   make(map[string]Value),
-		Stream: make(map[string][]Entry),
-	}
-	server := Server{
-		Store: store,
-	}
+	server := newServer()
 	l, err := server.start()
 	if server.rdbParser.dir != "" && server.rdbParser.filename != "" {
-		server.rdbParser.loadData(&server)
+		server.rdbParser.loadData(server)
 	}
 	if err != nil {
 		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])

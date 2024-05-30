@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -169,11 +170,41 @@ func (s *Server) handleXREAD(cmdArr []string) (string, error) {
 	if len(cmdArr) < 4 {
 		return "", fmt.Errorf("no valid input")
 	}
-	split := (len(cmdArr) - 2) / 2
-	res, err := s.Store.readMultipleStreams(cmdArr[2:split+2], cmdArr[2+split:])
-	if err != nil {
-
-		return "", err
+	if cmdArr[1] == "block" {
+		fmt.Println("key id ", cmdArr[4])
+		blockTime, err := strconv.Atoi(cmdArr[2])
+		if err != nil {
+			fmt.Println("error parsing block time ", err)
+			return "", err
+		}
+		// splitIndex := (len(cmdArr) - 4) / 2
+		bt := time.Duration(blockTime) * time.Millisecond
+		t := time.Now().Add(bt)
+		response := ""
+		for time.Now().Before(t) {
+			res, err := s.Store.readRange(cmdArr[4], cmdArr[5])
+			if err != nil {
+				fmt.Println("error reading multiple streams ", err)
+				return "", err
+			}
+			if res != "" {
+				response = res
+			}
+		}
+		if response == "" {
+			return "$-1\r\n", nil
+		} else {
+			return response, nil
+		}
 	}
-	return res, nil
+	if cmdArr[1] == "streams" {
+		split := (len(cmdArr) - 2) / 2
+		res, err := s.Store.readMultipleStreams(cmdArr[2:split+2], cmdArr[2+split:])
+		if err != nil {
+
+			return "", err
+		}
+		return res, nil
+	}
+	return "", nil
 }

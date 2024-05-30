@@ -10,9 +10,10 @@ import (
 )
 
 type Store struct {
-	Mutex  sync.Mutex
-	Data   map[string]Value
-	Stream map[string][]Entry
+	Mutex    sync.Mutex
+	Data     map[string]Value
+	StreamMu sync.Mutex
+	Stream   map[string][]Entry
 }
 
 type Value struct {
@@ -78,6 +79,8 @@ func (s *Store) getKeys() []string {
 	return keys
 }
 func (s *Store) storeStream(id string, key string, pairs []EntryPair) string {
+	s.StreamMu.Lock()
+	defer s.StreamMu.Unlock()
 	entries, exists := s.Stream[key]
 	entry := Entry{id: id, pairs: pairs}
 	if id == "*" {
@@ -185,6 +188,8 @@ func getNumValueOfID(id string) (int, int, error) {
 	return ms, seq, nil
 }
 func (s *Store) getEntriesOfRange(key string, from string, to string) (string, error) {
+	s.StreamMu.Lock()
+	defer s.StreamMu.Unlock()
 	entries, exists := s.Stream[key]
 	eInRange := []Entry{}
 	if !exists {
@@ -287,6 +292,8 @@ func splitID(id string) (int, int, error) {
 	return ts, seq, nil
 }
 func (s *Store) readRange(key string, id string) (string, error) {
+	s.StreamMu.Lock()
+	defer s.StreamMu.Unlock()
 	entries, exists := s.Stream[key]
 	InRange := []Entry{}
 	if !exists {
@@ -303,6 +310,9 @@ func (s *Store) readRange(key string, id string) (string, error) {
 	}
 	entryString := StreamEntriesToBulkString(InRange)
 	keyString := StringToBulkString(key)
+	if len(InRange) == 0 {
+		return "", nil
+	}
 	res := fmt.Sprintf("*2\r\n%s%s", keyString, entryString)
 	return res, nil
 
@@ -318,8 +328,13 @@ func (s *Store) readMultipleStreams(keys []string, ids []string) (string, error)
 		res = fmt.Sprintf("%s%s", res, streamString)
 		i++
 	}
-	res = fmt.Sprintf("*%d\r\n%s", i, res)
-	return res, nil
+	if res != "" {
+		res = fmt.Sprintf("*%d\r\n%s", i, res)
+		return res, nil
+	} else {
+		return "", nil
+
+	}
 }
 func idGreateThen(idOne string, idTwo string) (bool, error) {
 	oneTs, oneSeq, err := splitID(idOne)
@@ -332,9 +347,9 @@ func idGreateThen(idOne string, idTwo string) (bool, error) {
 	}
 	if oneTs >= twoTs {
 		if oneSeq != -1 && twoSeq != -1 {
-			return oneSeq >= twoSeq, nil
+			return oneSeq > twoSeq, nil
 		} else {
-			return true, nil
+			return oneTs > twoTs, nil
 		}
 	}
 	return false, nil
