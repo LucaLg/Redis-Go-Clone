@@ -12,13 +12,6 @@ import (
 	"time"
 )
 
-type Replication struct {
-	HOST_IP   string
-	HOST_PORT string
-	offsetMu  sync.Mutex
-	offset    int
-}
-
 const (
 	CommandEcho     = "echo"
 	CommandPing     = "ping"
@@ -38,6 +31,11 @@ const (
 	CommandXRead    = "xread"
 )
 
+type Replication struct {
+	HOST_IP   string
+	HOST_PORT string
+	offset    int
+}
 type Server struct {
 	addr   string
 	status string
@@ -204,22 +202,16 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			}
 			continue
 		}
+		res := string(buf[:i])
 		if s.status == "slave" && s.isRemoteMaster(conn) {
-			res := string(buf[:i])
-			rdbFilePres := strings.Contains(res, "redis")
-			if rdbFilePres {
-				fmt.Println("1.Read in handshake after write ", res)
+			fmt.Printf("Added %d to offset %d with %s\n", i, s.replication.offset, res)
+			if strings.Contains(res, "redis") {
 				s.handleRDBAndGetAck(res, conn)
-				s.replication.offsetMu.Lock()
-				fmt.Printf("Added %d to offset %d with %s\n", 37, s.replication.offset, res)
 				s.replication.offset = 37
-				s.replication.offsetMu.Unlock()
 			} else {
-				fmt.Printf("Added %d to offset %d with %s\n", i, s.replication.offset, res)
-				s.replication.offsetMu.Lock()
 				s.replication.offset += i
-				s.replication.offsetMu.Unlock()
 			}
+			fmt.Printf("Got offset: %d\n", s.replication.offset)
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
@@ -270,7 +262,7 @@ func (s *Server) writeResponse(writer io.Writer, mess string) error {
 
 func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	if len(cmdArr) == 0 {
-		return "", fmt.Errorf("Command Array is empty")
+		return "", fmt.Errorf("command Array is empty")
 	}
 	switch strings.ToLower(cmdArr[0]) {
 	case CommandEcho:
