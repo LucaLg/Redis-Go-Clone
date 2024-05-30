@@ -204,27 +204,28 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 		}
 		res := string(buf[:i])
 		if s.status == "slave" && s.isRemoteMaster(conn) {
-			fmt.Printf("Added %d to offset %d with %s\n", i, s.replication.offset, res)
 			if strings.Contains(res, "redis") {
 				s.handleRDBAndGetAck(res, conn)
 				s.replication.offset = 37
-			} else {
-				s.replication.offset += i
 			}
-			fmt.Printf("Got offset: %d\n", s.replication.offset)
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
 			v, err := s.Parser.parseMultipleCmds(buf[:i], s)
+			if err != nil {
+				log.Printf("Error parsing: %v", err)
+				continue
+			}
 			for _, cmd := range v {
 				fmt.Println("Length of cmd", len(cmd))
 			}
-			cmds, err := s.Parser.parseReplication(buf[:i], s)
+			cmds, err := s.Parser.parseReplication(v, s)
 			fmt.Println(cmds)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
 			}
-			for _, cmd := range cmds {
+			for i := 0; i < len(cmds); i++ {
+				cmd := cmds[i]
 				response, err := s.handleCmds(cmd, conn)
 				if s.shouldRespond(cmd, conn) {
 					fmt.Println("Received cmd", cmd)
@@ -238,6 +239,8 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 					log.Printf("Error occurred handleCmds in replication: %v", err)
 					continue
 				}
+				fmt.Printf("Added %d to offset %d with %s\n", len(v[i]), s.replication.offset, res)
+				s.replication.offset += len(v[i])
 			}
 		}
 	}

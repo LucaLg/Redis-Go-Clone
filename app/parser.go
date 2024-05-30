@@ -65,19 +65,10 @@ ParseReplication gets an []byte as input
 it handles the parsing of messages send by the master server to the replication server
 it splits up multiple commands send in one input slice so the client parser can handle it
 */
-func (p *Parser) parseReplication(input []byte, s *Server) ([][]string, error) {
-	inputs := make([][]byte, 0)
-	var lastStartIndex = 0
-	for i := 0; i < len(input); i++ {
-		if i != 0 && isValidCommandStart(input, i) {
-			inputs = append(inputs, input[lastStartIndex:i])
-			lastStartIndex = i
-		}
-	}
-	inputs = append(inputs, input[lastStartIndex:])
+func (p *Parser) parseReplication(input [][]byte, s *Server) ([][]string, error) {
 	commandsSlices := make([][]string, 0)
-	for _, input := range inputs {
-		cmds, err := s.Parser.Parse(input, s)
+	for _, i := range input {
+		cmds, err := s.Parser.Parse(i, s)
 		if err != nil {
 			return nil, fmt.Errorf(err.Error())
 		}
