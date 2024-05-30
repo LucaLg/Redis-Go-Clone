@@ -215,6 +215,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
 			cmds, err := s.Parser.parseReplication(buf[:i], s)
+			fmt.Println(cmds)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
