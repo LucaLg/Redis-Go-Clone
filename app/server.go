@@ -15,6 +15,7 @@ import (
 type Replication struct {
 	HOST_IP   string
 	HOST_PORT string
+	offsetMu  sync.Mutex
 	offset    int
 }
 
@@ -38,8 +39,9 @@ const (
 )
 
 type Server struct {
-	addr        string
-	status      string
+	addr   string
+	status string
+
 	replication Replication
 
 	Store     *Store
@@ -52,13 +54,19 @@ type Server struct {
 
 func (s *Server) handleReplication() {
 	s.status = "slave"
-	if len(flag.Args()) != 2 {
-		fmt.Println("No Master IP or Port given ")
-		return
-	}
-	s.replication = Replication{
-		HOST_IP:   flag.Args()[0],
-		HOST_PORT: flag.Args()[1],
+	fmt.Println("Replication started", flag.Args()[0])
+
+	if len(flag.Args()) < 2 {
+		p := strings.Split(flag.Args()[0], " ")
+		s.replication = Replication{
+			HOST_IP:   p[0],
+			HOST_PORT: p[1],
+		}
+	} else {
+		s.replication = Replication{
+			HOST_IP:   flag.Args()[0],
+			HOST_PORT: flag.Args()[1],
+		}
 	}
 	conn, err := s.handshake()
 	if err != nil {
@@ -202,9 +210,15 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			if rdbFilePres {
 				fmt.Println("1.Read in handshake after write ", res)
 				s.handleRDBAndGetAck(res, conn)
-				s.replication.offset += 37
+				s.replication.offsetMu.Lock()
+				fmt.Printf("Added %d to offset %d with %s\n", 37, s.replication.offset, res)
+				s.replication.offset = 37
+				s.replication.offsetMu.Unlock()
 			} else {
+				fmt.Printf("Added %d to offset %d with %s\n", i, s.replication.offset, res)
+				s.replication.offsetMu.Lock()
 				s.replication.offset += i
+				s.replication.offsetMu.Unlock()
 			}
 		}
 		if s.Parser.isValidBulkString(buf[:i]) {
