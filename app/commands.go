@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"fmt"
-	"io"
 	"net"
 	"strconv"
 	"strings"
@@ -21,7 +20,7 @@ func (s *Server) handleEcho(cmdArr []string, conn net.Conn) string {
 }
 func (s *Server) handleSet(cmdArr []string, conn net.Conn) (string, error) {
 	if s.status == "master" {
-		s.handlePropagation(cmdArr)
+		go s.handlePropagation(cmdArr)
 	}
 	s.Store.handleSet(cmdArr)
 	return "+OK\r\n", nil
@@ -47,7 +46,7 @@ func (s *Server) handleInfo(cmdArr []string) (string, error) {
 	}
 	return "", nil
 }
-func (s *Server) handleReplconf(cmdArr []string) (string, error) {
+func (s *Server) handleReplconf(cmdArr []string, conn *net.Conn) (string, error) {
 
 	fmt.Println(" received ", cmdArr[1])
 	if len(cmdArr) > 1 {
@@ -56,8 +55,14 @@ func (s *Server) handleReplconf(cmdArr []string) (string, error) {
 			fmt.Println("GetACK received ", cmdArr)
 			offset := fmt.Sprint(s.replication.offset)
 			res := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$%d\r\n%s\r\n", len(offset), offset)
-			return res, nil
+			s.writeResponse(*conn, res)
+			return "", nil
 		case "ack":
+			s.mu.Lock()
+			s.acks++
+			fmt.Println("Acknowledge received", s.acks)
+			s.mu.Unlock()
+			s.ackCh <- true
 			return "", nil
 		default:
 			return "+OK\r\n", nil
@@ -90,14 +95,15 @@ func (s *Server) rdbFile() string {
 	}
 	return fmt.Sprintf("$%d\r\n%s", len(emptyFile), emptyFile)
 }
-func (s *Server) handleRDBAndGetAck(c string, w io.Writer) error {
+func (s *Server) handleRDBAndGetAck(c string, conn *net.Conn) error {
 	cmds := strings.Split(c, "*")
 	if len(cmds) > 1 {
-		replRes, err := s.handleReplconf([]string{"replconf", "getack", "*"})
+		replRes, err := s.handleReplconf([]string{"replconf", "getack", "*"}, conn)
 		if err != nil {
 			return err
 		}
-		_, err = w.Write([]byte(replRes))
+
+		_, err = (*conn).Write([]byte(replRes))
 		if err != nil {
 			return err
 		}
@@ -126,9 +132,54 @@ func (s *Server) handleCommdand() (string, error) {
 func (s *Server) handlePing() string {
 	return "+PONG\r\n"
 }
-func (s *Server) handleWait() (string, error) {
-	return fmt.Sprintf(":%d\r\n", len(s.repConns)), nil
+func (s *Server) handleWait(cmdArr []string) (string, error) {
+	time.Sleep(500 * time.Millisecond)
+	if len(cmdArr) < 3 {
+		fmt.Println("Error input ")
+		return "", fmt.Errorf("no valid input")
+	}
+
+	requiredAcks, err := strconv.Atoi(cmdArr[1])
+	if err != nil {
+		fmt.Println("Error parsing required acks", err)
+		return "", err
+	}
+
+	timeout, err := strconv.Atoi(cmdArr[2])
+	if err != nil {
+		fmt.Println("Error parsing ts", err)
+		return "", err
+	}
+	timeoutDuration := time.Duration(timeout) * time.Millisecond
+	timer := time.NewTimer(timeoutDuration)
+	defer timer.Stop()
+
+	// go func() {
+	// 	s.getAcks() // Send GETACK to replicas
+	// }()
+
+	for {
+		select {
+		case <-s.ackCh:
+			fmt.Println("Ack received")
+			s.mu.Lock()
+			if s.acks >= requiredAcks {
+				s.pendingPropagations = false
+				s.mu.Unlock()
+				fmt.Println("Required acknowledgements received:", s.acks)
+				return fmt.Sprintf(":%d\r\n", s.acks), nil
+			}
+			s.mu.Unlock()
+		case <-timer.C:
+			s.mu.Lock()
+			s.pendingPropagations = false
+			s.mu.Unlock()
+			fmt.Printf("Timed out waiting for acks: %d\n", s.acks)
+			return fmt.Sprintf(":%d\r\n", s.acks), nil
+		}
+	}
 }
+
 func (s *Server) handleType(cmdArr []string) (string, error) {
 	if len(cmdArr) < 2 {
 		return "", fmt.Errorf("couldnt return type no key given")

@@ -46,8 +46,14 @@ type Server struct {
 	Parser    Parser
 	rdbParser RdbParser
 
-	consMu   sync.Mutex
-	repConns []*net.Conn
+	consMu              sync.Mutex
+	repConns            []*net.Conn
+	ackConns            []*net.Conn
+	acks                int
+	ackCh               chan bool
+	mu                  sync.Mutex
+	ackCond             *sync.Cond
+	pendingPropagations bool
 }
 
 func (s *Server) handleReplication() {
@@ -109,7 +115,7 @@ func (s *Server) handshake() (net.Conn, error) {
 
 		if strings.Contains(res, "*") {
 			fmt.Println("1.Read in handshake after write ", res)
-			s.handleRDBAndGetAck(res, conn)
+			s.handleRDBAndGetAck(res, &conn)
 			getack = true
 			break
 		}
@@ -135,13 +141,17 @@ func (s *Server) handshake() (net.Conn, error) {
 	return conn, nil
 }
 func newServer() *Server {
-	return &Server{
+	s := &Server{
 		Store: &Store{
 			Mutex:  sync.Mutex{},
 			Data:   make(map[string]Value),
 			Stream: make(map[string][]Entry),
 		},
+		pendingPropagations: false,
+		ackCh:               make(chan bool, 100),
 	}
+	s.ackCond = sync.NewCond(&s.mu)
+	return s
 }
 
 func (s *Server) start() (net.Listener, error) {
@@ -203,9 +213,10 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 			continue
 		}
 		res := string(buf[:i])
+		fmt.Printf("Received data: %s\n", res)
 		if s.status == "slave" && s.isRemoteMaster(conn) {
 			if strings.Contains(res, "redis") {
-				s.handleRDBAndGetAck(res, conn)
+				s.handleRDBAndGetAck(res, &conn)
 				s.replication.offset = 37
 			}
 		}
@@ -215,11 +226,8 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				log.Printf("Error parsing: %v", err)
 				continue
 			}
-			for _, cmd := range v {
-				fmt.Println("Length of cmd", len(cmd))
-			}
 			cmds, err := s.Parser.parseReplication(v, s)
-			fmt.Println(cmds)
+			// fmt.Println(cmds)
 			if err != nil {
 				log.Printf("Error parsing: %v", err)
 				continue
@@ -228,7 +236,7 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				cmd := cmds[i]
 				response, err := s.handleCmds(cmd, conn)
 				if s.shouldRespond(cmd, conn) {
-					fmt.Println("Received cmd", cmd)
+					// fmt.Println("Received cmd", cmd)
 					writeErr := s.writeResponse(conn, response)
 					if writeErr != nil {
 						log.Printf("Error writing a response: %v", writeErr)
@@ -239,8 +247,10 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 					log.Printf("Error occurred handleCmds in replication: %v", err)
 					continue
 				}
-				fmt.Printf("Added %d to offset %d with %s\n", len(v[i]), s.replication.offset, res)
-				s.replication.offset += len(v[i])
+				if s.status != "master" {
+					fmt.Printf("Added %d to offset %d with %s\n", len(v[i]), s.replication.offset, res)
+					s.replication.offset += len(v[i])
+				}
 			}
 		}
 	}
@@ -256,7 +266,6 @@ func (s *Server) isRemoteMaster(conn net.Conn) bool {
 }
 
 func (s *Server) shouldRespond(cmd []string, conn net.Conn) bool {
-	fmt.Println()
 	return s.status == "master" || (cmd[0] == "replconf" && cmd[1] == "getack") || !s.isRemoteMaster(conn)
 }
 
@@ -282,7 +291,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case CommandCommand:
 		return s.handleCommdand()
 	case CommandWait:
-		return s.handleWait()
+		return s.handleWait(cmdArr)
 	case CommandSet:
 		return s.handleSet(cmdArr, conn)
 	case CommandGet:
@@ -292,7 +301,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case CommandKeys:
 		return s.handleKeys()
 	case CommandReplconf:
-		return s.handleReplconf(cmdArr)
+		return s.handleReplconf(cmdArr, &conn)
 	case CommandPsync:
 		return s.handlePsync(cmdArr, conn)
 	case CommandConfig:
@@ -311,8 +320,29 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 }
 
 func (s *Server) handlePropagation(cmdArr []string) {
+	s.mu.Lock()
+	s.acks = 0
+	s.pendingPropagations = true
+	s.mu.Unlock()
+	go func() {
+		for _, conn := range s.repConns {
+
+			cmd := SliceToBulkString(cmdArr)
+
+			err := s.writeResponse(*conn, cmd)
+			if err != nil {
+				log.Printf("An error occurred while sending propagations %v", err)
+			}
+			fmt.Printf("Sent propagation to %s  ", cmd)
+		}
+	}()
+	s.mu.Lock()
+	s.pendingPropagations = false
+	s.mu.Unlock()
+}
+func (s *Server) getAcks() {
 	for _, conn := range s.repConns {
-		cmd := SliceToBulkString(cmdArr)
+		cmd := SliceToBulkString([]string{"replconf", "GETACK", "*"})
 		err := s.writeResponse(*conn, cmd)
 		if err != nil {
 			log.Printf("An error occurred while sending propagations %v", err)
