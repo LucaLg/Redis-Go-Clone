@@ -20,7 +20,7 @@ func (s *Server) handleEcho(cmdArr []string, conn net.Conn) string {
 }
 func (s *Server) handleSet(cmdArr []string, conn net.Conn) (string, error) {
 	if s.status == "master" {
-		go s.handlePropagation(cmdArr)
+		s.handlePropagation(cmdArr)
 	}
 	s.Store.handleSet(cmdArr)
 	return "+OK\r\n", nil
@@ -52,14 +52,15 @@ func (s *Server) handleReplconf(cmdArr []string, conn *net.Conn) (string, error)
 	if len(cmdArr) > 1 {
 		switch cmdArr[1] {
 		case "getack":
-			fmt.Println("GetACK received ", cmdArr)
 			offset := fmt.Sprint(s.replication.offset)
 			res := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$%d\r\n%s\r\n", len(offset), offset)
 			s.writeResponse(*conn, res)
+			fmt.Println("Get Ack receveid in replication with offset:", offset)
 			return "", nil
 		case "ack":
 			s.mu.Lock()
 			s.acks++
+			fmt.Println("Ack received in master currentAcks:", s.acks)
 			s.mu.Unlock()
 			s.ackCh <- true
 			return "", nil
@@ -132,6 +133,8 @@ func (s *Server) handlePing() string {
 	return "+PONG\r\n"
 }
 func (s *Server) handleWait(cmdArr []string, conn *net.Conn) (string, error) {
+	// time.Sleep(450 * time.Millisecond)
+	s.wait++
 	if len(cmdArr) < 3 {
 		fmt.Println("Error input ")
 		return "", fmt.Errorf("no valid input")
@@ -145,37 +148,24 @@ func (s *Server) handleWait(cmdArr []string, conn *net.Conn) (string, error) {
 
 	timeout, err := strconv.Atoi(cmdArr[2])
 	if err != nil {
-		fmt.Println("Error parsing ts", err)
+		fmt.Println("Error parsing timeout", err)
 		return "", err
 	}
-	timeoutDuration := time.Duration(timeout) * time.Millisecond
-	timer := time.NewTimer(timeoutDuration)
-	defer timer.Stop()
-	for s.pendingPropagations {
-		time.Sleep(100 * time.Millisecond)
-	}
-
+	timeoutDuration := (time.Duration(timeout) + 500) * time.Millisecond
+	timeoutChan := time.After(timeoutDuration)
 	for {
 		select {
+		case <-timeoutChan:
+			fmt.Printf("Timed out waiting for acks: %d\n", s.acks)
+			return fmt.Sprintf(":%d\r\n", s.acks), nil
 		case <-s.ackCh:
-			fmt.Println("Ack received")
+			// Handle a signal that an ack was received
 			s.mu.Lock()
 			if s.acks >= requiredAcks {
-				s.pendingPropagations = false
-				s.mu.Unlock()
 				fmt.Println("Required acknowledgements received:", s.acks)
-
-				(*conn).Write([]byte(fmt.Sprintf(":%d\r\n", s.acks)))
-				return "", nil
+				return fmt.Sprintf(":%d\r\n", s.acks), nil
 			}
 			s.mu.Unlock()
-		case <-timer.C:
-			s.mu.Lock()
-			s.pendingPropagations = false
-			s.mu.Unlock()
-			fmt.Printf("Timed out waiting for acks: %d\n", s.acks)
-			(*conn).Write([]byte(fmt.Sprintf(":%d\r\n", s.acks)))
-			return "", nil
 		}
 	}
 }

@@ -1,34 +1,17 @@
 [![progress-banner](https://backend.codecrafters.io/progress/redis/ce9cc996-a018-4532-9ef5-99e52743b108)](https://app.codecrafters.io/users/codecrafters-bot?r=2qF)
 
-This is a starting point for Go solutions to the
+CodeCrafters Redis Challenge in Go
 ["Build Your Own Redis" Challenge](https://codecrafters.io/challenges/redis).
 
-In this challenge, you'll build a toy Redis clone that's capable of handling
-basic commands like `PING`, `SET` and `GET`. Along the way we'll learn about
-event loops, the Redis protocol and more.
+Durch lösen von verschiedener Aufgaben, wird schrittweise ein Redis-Server in Go implementiert.
+Dabei wird jeweils nur die gewünschte Funktionalität erklärt und ein Testcase vorgegeben.
+Die Implementierung wird dem Entwickler überlassen. Nach lösen einer Aufgabe wird der Code automatisch getestet . Falls die Tests erfolgreich sind, wird die nächste Aufgabe freigeschaltet.
 
-**Note**: If you're viewing this repo on GitHub, head over to
-[codecrafters.io](https://codecrafters.io) to try the challenge.
+Folgende Redis spezifische oder Go spezifische Funktionalitäten werden in den Aufgaben behandelt:
 
-# Passing the first stage
-
-The entry point for your Redis implementation is in `app/server.go`. Study and
-uncomment the relevant code, and push your changes to pass the first stage:
-
-```sh
-git add .
-git commit -m "pass 1st stage" # any msg
-git push origin master
-```
-
-That's all!
-
-# Stage 2 & beyond
-
-Note: This section is for stages 2 and beyond.
-
-1. Ensure you have `go (1.19)` installed locally
-1. Run `./spawn_redis_server.sh` to run your Redis server, which is implemented
-   in `app/server.go`.
-1. Commit your changes and run `git push origin master` to submit your solution
-   to CodeCrafters. Test output will be streamed to your terminal.
+- Implementierung von Redis-Befehlen wie GET SET DEL
+- TCP-Server in Go mit Read- und Write-Operationen, Connection Handling und Error Handling
+- Redis Bulk Strings Parser
+- Redis RDB (Redis Database) Parser [RDB Format](https://rdb.fnordig.de/file_format.html)
+- Redis Replication Server mit Handshake und Datenübertragung
+- Redis Stream Format mit XADD und XREAD Befehlen die Streams lesen und schreiben
