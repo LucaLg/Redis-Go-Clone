@@ -48,7 +48,6 @@ type Server struct {
 
 	consMu              sync.Mutex
 	repConns            []*net.Conn
-	ackConns            []*net.Conn
 	acks                int
 	ackCh               chan bool
 	mu                  sync.Mutex
@@ -237,10 +236,12 @@ func (s *Server) handleClient(conn net.Conn, buf []byte) {
 				response, err := s.handleCmds(cmd, conn)
 				if s.shouldRespond(cmd, conn) {
 					// fmt.Println("Received cmd", cmd)
-					writeErr := s.writeResponse(conn, response)
-					if writeErr != nil {
-						log.Printf("Error writing a response: %v", writeErr)
-						continue
+					if response != "" {
+						writeErr := s.writeResponse(conn, response)
+						if writeErr != nil {
+							log.Printf("Error writing a response: %v", writeErr)
+							continue
+						}
 					}
 				}
 				if err != nil {
@@ -291,7 +292,7 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 	case CommandCommand:
 		return s.handleCommdand()
 	case CommandWait:
-		return s.handleWait(cmdArr)
+		return s.handleWait(cmdArr, &conn)
 	case CommandSet:
 		return s.handleSet(cmdArr, conn)
 	case CommandGet:
@@ -324,17 +325,26 @@ func (s *Server) handlePropagation(cmdArr []string) {
 	s.acks = 0
 	s.pendingPropagations = true
 	s.mu.Unlock()
-	go func() {
-		for _, conn := range s.repConns {
-
+	var wg sync.WaitGroup
+	for _, conn := range s.repConns {
+		wg.Add(1)
+		go func(conn *net.Conn) {
+			defer wg.Done()
 			cmd := SliceToBulkString(cmdArr)
-
+			fmt.Println("Sending propagation", cmd)
 			err := s.writeResponse(*conn, cmd)
 			if err != nil {
-				log.Printf("An error occurred while sending propagations %v", err)
+				log.Printf("An error occurred while sending propagation %v", err)
 			}
-			fmt.Printf("Sent propagation to %s  ", cmd)
-		}
+		}(conn)
+	}
+
+	wg.Wait()
+	log.Println("All propagations sent")
+	time.Sleep(400 * time.Millisecond)
+
+	go func() {
+		s.getAcks()
 	}()
 	s.mu.Lock()
 	s.pendingPropagations = false

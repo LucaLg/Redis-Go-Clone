@@ -60,7 +60,6 @@ func (s *Server) handleReplconf(cmdArr []string, conn *net.Conn) (string, error)
 		case "ack":
 			s.mu.Lock()
 			s.acks++
-			fmt.Println("Acknowledge received", s.acks)
 			s.mu.Unlock()
 			s.ackCh <- true
 			return "", nil
@@ -132,8 +131,7 @@ func (s *Server) handleCommdand() (string, error) {
 func (s *Server) handlePing() string {
 	return "+PONG\r\n"
 }
-func (s *Server) handleWait(cmdArr []string) (string, error) {
-	time.Sleep(500 * time.Millisecond)
+func (s *Server) handleWait(cmdArr []string, conn *net.Conn) (string, error) {
 	if len(cmdArr) < 3 {
 		fmt.Println("Error input ")
 		return "", fmt.Errorf("no valid input")
@@ -153,10 +151,9 @@ func (s *Server) handleWait(cmdArr []string) (string, error) {
 	timeoutDuration := time.Duration(timeout) * time.Millisecond
 	timer := time.NewTimer(timeoutDuration)
 	defer timer.Stop()
-
-	// go func() {
-	// 	s.getAcks() // Send GETACK to replicas
-	// }()
+	for s.pendingPropagations {
+		time.Sleep(100 * time.Millisecond)
+	}
 
 	for {
 		select {
@@ -167,7 +164,9 @@ func (s *Server) handleWait(cmdArr []string) (string, error) {
 				s.pendingPropagations = false
 				s.mu.Unlock()
 				fmt.Println("Required acknowledgements received:", s.acks)
-				return fmt.Sprintf(":%d\r\n", s.acks), nil
+
+				(*conn).Write([]byte(fmt.Sprintf(":%d\r\n", s.acks)))
+				return "", nil
 			}
 			s.mu.Unlock()
 		case <-timer.C:
@@ -175,7 +174,8 @@ func (s *Server) handleWait(cmdArr []string) (string, error) {
 			s.pendingPropagations = false
 			s.mu.Unlock()
 			fmt.Printf("Timed out waiting for acks: %d\n", s.acks)
-			return fmt.Sprintf(":%d\r\n", s.acks), nil
+			(*conn).Write([]byte(fmt.Sprintf(":%d\r\n", s.acks)))
+			return "", nil
 		}
 	}
 }
