@@ -56,6 +56,143 @@ type Server struct {
 	wait                int
 }
 
+func main() {
+	server := newServer()
+	l, err := server.start()
+	if server.rdbParser.dir != "" && server.rdbParser.filename != "" {
+		server.rdbParser.loadData(server)
+	}
+	if err != nil {
+		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
+		os.Exit(1)
+	}
+	fmt.Println("Server started on ", server.addr)
+	sem := make(chan struct{}, 100)
+	//Listen for incoming connections
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			continue
+		}
+		fmt.Println("Connection added to ", conn.RemoteAddr().String())
+		sem <- struct{}{}
+		go func(con net.Conn) {
+			buf := make([]byte, 2048)
+			server.handleClient(con, buf)
+			<-sem
+		}(conn)
+	}
+}
+func newServer() *Server {
+	s := &Server{
+		Store: &Store{
+			Mutex:  sync.Mutex{},
+			Data:   make(map[string]Value),
+			Stream: make(map[string][]Entry),
+		},
+		pendingPropagations: false,
+		ackCh:               make(chan bool, 100),
+	}
+	s.ackCond = sync.NewCond(&s.mu)
+	return s
+}
+func (s *Server) start() (net.Listener, error) {
+	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
+	rdbDir := flag.String("dir", "", "Specify a filepath where the rdb file is stored")
+	rdbfileName := flag.String("dbfilename", "", "Specify a filename for the rdb ")
+	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
+	flag.Parse()
+	s.rdbParser.dir = *rdbDir
+	s.rdbParser.filename = *rdbfileName
+	s.addr = fmt.Sprintf("%s:%s", "localhost", *portFlag)
+	if *replicationFlag {
+		s.handleReplication()
+	} else {
+		s.status = "master"
+	}
+	return net.Listen("tcp", s.addr)
+}
+
+/*
+HandleClient handles the client connection
+in an infinite loop, it reads the input from the client and
+sends it to the parser to parse the commands and handle them accordingly
+*/
+func (s *Server) handleClient(conn net.Conn, buf []byte) {
+	defer conn.Close()
+	for {
+		i, err := conn.Read(buf)
+		if err != nil {
+			if err == io.EOF {
+				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
+				break
+			} else {
+				log.Printf("Error reading from connection: %v", err)
+			}
+			continue
+		}
+		res := string(buf[:i])
+		// fmt.Printf("Received data: %s\n", res)
+		if s.status == "slave" && s.isRemoteMaster(conn) {
+			if strings.Contains(res, "redis") {
+				s.handleRDBAndGetAck(res, &conn)
+				s.replication.offset = 37
+			}
+		}
+		if s.Parser.isValidBulkString(buf[:i]) {
+			v, err := s.Parser.parseMultipleCmds(buf[:i], s)
+			if err != nil {
+				log.Printf("Error parsing: %v", err)
+				continue
+			}
+			cmds, err := s.Parser.parseReplication(v, s)
+			// fmt.Println(cmds)
+			if err != nil {
+				log.Printf("Error parsing: %v", err)
+				continue
+			}
+			for i := 0; i < len(cmds); i++ {
+				go func(i int) {
+					cmd := cmds[i]
+					response, err := s.handleCmds(cmd, conn)
+					if s.shouldRespond(cmd, conn) {
+						if response != "" {
+							_, err := conn.Write([]byte(response))
+							if err != nil {
+								log.Printf("Error writing a response: %v", err)
+							}
+						}
+					}
+					if err != nil {
+						log.Printf("Error occurred handleCmds in replication: %v", err)
+					}
+					if s.status != "master" {
+						// fmt.Printf("Added %d to offset %d with %s\n", len(v[i]), s.replication.offset, res)
+						s.replication.offset += len(v[i])
+					}
+				}(i)
+			}
+		}
+	}
+}
+
+func (s *Server) isRemoteMaster(conn net.Conn) bool {
+	hostIP := s.replication.HOST_IP
+	if hostIP == "localhost" {
+		hostIP = "[::1]"
+	}
+	val := conn.RemoteAddr().String() == fmt.Sprintf("%s:%s", hostIP, s.replication.HOST_PORT)
+	return val
+}
+
+func (s *Server) shouldRespond(cmd []string, conn net.Conn) bool {
+	return s.status == "master" || (cmd[0] == "replconf" && cmd[1] == "getack") || !s.isRemoteMaster(conn)
+}
+
+/*
+Create a new replication connection and initiate the handshake
+*/
 func (s *Server) handleReplication() {
 	s.status = "slave"
 	fmt.Println("Replication started", flag.Args()[0])
@@ -98,7 +235,6 @@ func (s *Server) handshake() (net.Conn, error) {
 	}
 
 	buf := make([]byte, 2048)
-	getack := false
 	for _, hsInput := range handshakeStages {
 		_, err := conn.Write([]byte(hsInput))
 		if err != nil {
@@ -114,169 +250,71 @@ func (s *Server) handshake() (net.Conn, error) {
 		res := string(buf[:i])
 
 		if strings.Contains(res, "*") {
-			fmt.Println("1.Read in handshake after write ", res)
+			fmt.Println("1. Read in handshake after write ", res)
 			s.handleRDBAndGetAck(res, &conn)
-			getack = true
 			break
 		}
-	}
-	if !getack {
-		// for {
-		// 	conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-		// 	i, err := conn.Read(buf)
-		// 	if err != nil {
-		// 		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-		// 			fmt.Println("Read timed out")
-		// 			fmt.Println("2.Read in handshake after write ", string(buf[:i]))
-
-		// 		} else {
-		// 			fmt.Println("Read error:", err)
-		// 		}
-		// 		break
-		// 	}
-		// }
 	}
 	conn.SetReadDeadline(time.Time{})
 	fmt.Println("Handshake finished")
 	return conn, nil
 }
-func newServer() *Server {
-	s := &Server{
-		Store: &Store{
-			Mutex:  sync.Mutex{},
-			Data:   make(map[string]Value),
-			Stream: make(map[string][]Entry),
-		},
-		pendingPropagations: false,
-		ackCh:               make(chan bool, 100),
-	}
-	s.ackCond = sync.NewCond(&s.mu)
-	return s
-}
 
-func (s *Server) start() (net.Listener, error) {
-	portFlag := flag.String("port", "6379", "Give a custom port to run the server ")
-	rdbDir := flag.String("dir", "", "Specify a filepath where the rdb file is stored")
-	rdbfileName := flag.String("dbfilename", "", "Specify a filename for the rdb ")
-	replicationFlag := flag.Bool("replicaof", false, "Specify if the server is a replica")
-	flag.Parse()
-	s.rdbParser.dir = *rdbDir
-	s.rdbParser.filename = *rdbfileName
-	s.addr = fmt.Sprintf("%s:%s", "localhost", *portFlag)
-	if *replicationFlag {
-		s.handleReplication()
-	} else {
-		s.status = "master"
-	}
-	return net.Listen("tcp", s.addr)
-}
-
-func main() {
-	server := newServer()
-	l, err := server.start()
-	if server.rdbParser.dir != "" && server.rdbParser.filename != "" {
-		server.rdbParser.loadData(server)
-	}
-	if err != nil {
-		fmt.Printf("Failed to bind to port %s", strings.Split(server.addr, ":")[1])
-		os.Exit(1)
-	}
-	fmt.Println("Server started on ", server.addr)
-	sem := make(chan struct{}, 100)
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
-			continue
-		}
-		fmt.Println("Connection added to ", conn.RemoteAddr().String())
-		sem <- struct{}{}
-		go func(con net.Conn) {
-			buf := make([]byte, 2048)
-			server.handleClient(con, buf)
-			<-sem
+/*
+HandlePropagation sends the command to all replication servers
+*/
+func (s *Server) handlePropagation(cmdArr []string) {
+	s.mu.Lock()
+	s.acks = 0
+	s.mu.Unlock()
+	var wg sync.WaitGroup
+	for _, conn := range s.repConns {
+		wg.Add(1)
+		go func(conn *net.Conn) {
+			defer wg.Done()
+			cmd := SliceToBulkString(cmdArr)
+			// fmt.Println("Sending propagation", cmdArr[0])
+			_, err := (*conn).Write([]byte(cmd))
+			if err != nil {
+				log.Printf("An error occurred while sending propagation %v", err)
+			}
 		}(conn)
 	}
+
+	wg.Wait()
+	log.Println("All propagations sent")
+	s.getAcks()
 }
 
-func (s *Server) handleClient(conn net.Conn, buf []byte) {
-	defer conn.Close()
-	for {
-		i, err := conn.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				log.Printf("Connection closed by client: %v", conn.RemoteAddr())
-				break
-			} else {
-				log.Printf("Error reading from connection: %v", err)
-			}
-			continue
-		}
-		res := string(buf[:i])
-		// fmt.Printf("Received data: %s\n", res)
-		if s.status == "slave" && s.isRemoteMaster(conn) {
-			if strings.Contains(res, "redis") {
-				s.handleRDBAndGetAck(res, &conn)
-				s.replication.offset = 37
-			}
-		}
-		if s.Parser.isValidBulkString(buf[:i]) {
-			v, err := s.Parser.parseMultipleCmds(buf[:i], s)
+/*
+Get the acks from the replication servers after a propagation
+*/
+func (s *Server) getAcks() {
+	wg := sync.WaitGroup{}
+	for _, conn := range s.repConns {
+		wg.Add(1)
+		go func(conn *net.Conn) {
+			defer wg.Done()
+			cmd := SliceToBulkString([]string{"replconf", "GETACK", "*"})
+			fmt.Println("Sending getack")
+			_, err := (*conn).Write([]byte(cmd))
 			if err != nil {
-				log.Printf("Error parsing: %v", err)
-				continue
+				log.Printf("An error occurred while sending getack %v", err)
 			}
-			cmds, err := s.Parser.parseReplication(v, s)
-			// fmt.Println(cmds)
+			buffer := make([]byte, 1024)
+			_, err = (*conn).Read(buffer)
 			if err != nil {
-				log.Printf("Error parsing: %v", err)
-				continue
+				log.Printf("An error occurred while reading getack %v", err)
 			}
-			for i := 0; i < len(cmds); i++ {
-				go func(i int) {
-					cmd := cmds[i]
-					response, err := s.handleCmds(cmd, conn)
-					if s.shouldRespond(cmd, conn) {
-						// fmt.Println("Received cmd", cmd)
-						if response != "" {
-							writeErr := s.writeResponse(conn, response)
-							if writeErr != nil {
-								log.Printf("Error writing a response: %v", writeErr)
-							}
-						}
-					}
-					if err != nil {
-						log.Printf("Error occurred handleCmds in replication: %v", err)
-					}
-					if s.status != "master" {
-						// fmt.Printf("Added %d to offset %d with %s\n", len(v[i]), s.replication.offset, res)
-						s.replication.offset += len(v[i])
-					}
-				}(i)
-			}
-		}
+			// fmt.Println("Got replconf response", string(buffer[:r]))
+			s.mu.Lock()
+			s.acks++
+			// fmt.Println("Ack received in master currentAcks:", s.acks)
+			s.mu.Unlock()
+			s.ackCh <- true
+		}(conn)
 	}
-}
-
-func (s *Server) isRemoteMaster(conn net.Conn) bool {
-	hostIP := s.replication.HOST_IP
-	if hostIP == "localhost" {
-		hostIP = "[::1]"
-	}
-	val := conn.RemoteAddr().String() == fmt.Sprintf("%s:%s", hostIP, s.replication.HOST_PORT)
-	return val
-}
-
-func (s *Server) shouldRespond(cmd []string, conn net.Conn) bool {
-	return s.status == "master" || (cmd[0] == "replconf" && cmd[1] == "getack") || !s.isRemoteMaster(conn)
-}
-
-func (s *Server) writeResponse(writer io.Writer, mess string) error {
-	_, err := writer.Write([]byte(mess))
-	if err != nil {
-		return err
-	}
-	return nil
+	wg.Wait()
 }
 
 func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
@@ -318,70 +356,5 @@ func (s *Server) handleCmds(cmdArr []string, conn net.Conn) (string, error) {
 		return s.handleXREAD(cmdArr)
 	default:
 		return "", fmt.Errorf("unknown command: %v", cmdArr[0])
-	}
-}
-
-func (s *Server) handlePropagation(cmdArr []string) {
-	s.mu.Lock()
-	s.acks = 0
-	s.pendingPropagations = true
-	s.mu.Unlock()
-	var wg sync.WaitGroup
-	for _, conn := range s.repConns {
-		wg.Add(1)
-		go func(conn *net.Conn) {
-			defer wg.Done()
-			cmd := SliceToBulkString(cmdArr)
-			fmt.Println("Sending propagation", cmdArr[0])
-			_, err := (*conn).Write([]byte(cmd))
-			if err != nil {
-				log.Printf("An error occurred while sending propagation %v", err)
-			}
-		}(conn)
-	}
-
-	wg.Wait()
-	log.Println("All propagations sent")
-
-	if s.wait > 0 {
-
-		for _, conn := range s.repConns {
-			wg.Add(1)
-			go func(conn *net.Conn) {
-				cmd := SliceToBulkString([]string{"replconf", "GETACK", "*"})
-
-				fmt.Println("Sending getack")
-				_, err := (*conn).Write([]byte(cmd))
-				if err != nil {
-					log.Printf("An error occurred while sending getack %v", err)
-				}
-				buffer := make([]byte, 1024)
-				// TODO: Ignoring result, just "flushing" the response
-				r, err := (*conn).Read(buffer)
-				if err != nil {
-					log.Printf("An error occurred while reading getack %v", err)
-				}
-				fmt.Println("Got replconf response", string(buffer[:r]))
-				s.mu.Lock()
-				s.acks++
-				fmt.Println("Ack received in master currentAcks:", s.acks)
-				s.mu.Unlock()
-				s.ackCh <- true
-			}(conn)
-		}
-	}
-	wg.Wait()
-}
-func (s *Server) getAcks() {
-	for _, conn := range s.repConns {
-		cmd := SliceToBulkString([]string{"replconf", "GETACK", "*"})
-
-		i, err := (*conn).Write([]byte(cmd))
-		if err != nil {
-			log.Printf("An error occurred while sending getack %v", err)
-		}
-		if i > 0 {
-			log.Printf("Sent getack %v", cmd)
-		}
 	}
 }

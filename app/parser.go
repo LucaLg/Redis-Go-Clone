@@ -10,7 +10,7 @@ type Parser struct {
 
 func (p *Parser) parseLength(input []byte, index int) (int, int, error) {
 	if string(input[0]) != "$" && string(input[0]) != "*" {
-		return -1, -1, fmt.Errorf("Isnt a valid input to parse")
+		return -1, -1, fmt.Errorf("isnt a valid input to parse")
 	}
 	var arrayLength int
 	var i int = index + 1

@@ -47,20 +47,21 @@ func (s *Server) handleInfo(cmdArr []string) (string, error) {
 	return "", nil
 }
 func (s *Server) handleReplconf(cmdArr []string, conn *net.Conn) (string, error) {
-
-	fmt.Println(" received ", cmdArr[1])
 	if len(cmdArr) > 1 {
 		switch cmdArr[1] {
 		case "getack":
 			offset := fmt.Sprint(s.replication.offset)
 			res := fmt.Sprintf("*3\r\n$8\r\nREPLCONF\r\n$3\r\nACK\r\n$%d\r\n%s\r\n", len(offset), offset)
-			s.writeResponse(*conn, res)
-			fmt.Println("Get Ack receveid in replication with offset:", offset)
+			_, err := (*conn).Write([]byte(res))
+			if err != nil {
+				return "", err
+			}
+			// fmt.Println("Get Ack receveid in replication with offset:", offset)
 			return "", nil
 		case "ack":
 			s.mu.Lock()
 			s.acks++
-			fmt.Println("Ack received in master currentAcks:", s.acks)
+			// fmt.Println("Ack received in master currentAcks:", s.acks)
 			s.mu.Unlock()
 			s.ackCh <- true
 			return "", nil
@@ -74,7 +75,7 @@ func (s *Server) handlePsync(cmdArr []string, conn net.Conn) (string, error) {
 	conn.(*net.TCPConn).SetNoDelay(true)
 	id := "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 	fullResync := fmt.Sprintf("+FULLRESYNC %s 0\r\n", id)
-	s.writeResponse(conn, fullResync)
+	conn.Write([]byte(fullResync))
 	s.consMu.Lock()
 	s.repConns = append(s.repConns, &conn)
 	s.consMu.Unlock()
@@ -191,6 +192,11 @@ func (s *Server) handleType(cmdArr []string) (string, error) {
 	return "", fmt.Errorf("couldnt get type of value")
 
 }
+
+/*
+STREAM OPERATIONS
+*/
+
 func (s *Server) handleXADD(cmdArr []string) (string, error) {
 	if len(cmdArr) < 3 {
 		return "", fmt.Errorf("couldnt save stream with no key")

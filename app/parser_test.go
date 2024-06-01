@@ -102,11 +102,20 @@ func TestParse(t *testing.T) {
 		t.Run("Test replication parser", func(t *testing.T) {
 			input := []byte("*3\r\n$3\r\nset\r\n$3\r\nfoo\r\n$1\r\n1\r\n*3\r\n$3\r\nset\r\n$3\r\nbar\r\n$1\r\n1\r\n")
 			input2 := []byte("*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")
-			got, err := server.Parser.parseReplication(input, server)
+
+			splitCmds1, err := server.Parser.parseMultipleCmds(input, server)
+			if err != nil {
+				t.Fatalf("Error parsing: %v", err)
+			}
+			got, err := server.Parser.parseReplication(splitCmds1, server)
 			if err != nil {
 				t.Fatalf("Test failed coulndt parse input")
 			}
-			got2, err := server.Parser.parseReplication(input2, server)
+			splitCmds2, err := server.Parser.parseMultipleCmds(input2, server)
+			if err != nil {
+				t.Fatalf("Error parsing: %v", err)
+			}
+			got2, err := server.Parser.parseReplication(splitCmds2, server)
 			if err != nil {
 				t.Fatalf("Test failed coulndt parse input")
 			}
@@ -191,7 +200,11 @@ func TestParse(t *testing.T) {
 		p := &Parser{}
 		s := &Server{}
 		input := fmt.Sprintf("$88\r\nREDIS0011�\tredis-ver7.2.0�\nredis-bits�@�ctime��eused-mem°�aof-base���n;���Z�*3\r\n$8\r\nREPLCONF\r\n$6\r\nGETACK\r\n$1\r\n*\r\n")
-		result, err := p.parseReplication([]byte(input), s)
+		splitCmds, err := p.parseMultipleCmds([]byte(input), s)
+		if err != nil {
+			t.Fatalf("Expected no error, but got: %v", err)
+		}
+		result, err := p.parseReplication(splitCmds, s)
 		if err != nil {
 			t.Fatalf("Expected no error, but got: %v", err)
 		}

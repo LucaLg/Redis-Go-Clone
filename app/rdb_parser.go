@@ -48,11 +48,8 @@ func (r *RdbParser) ParseFile(s *Server) error {
 		return fmt.Errorf("error occured while reading keys %w", err)
 	}
 
-	keys := []string{}
 	for _, p := range keyValPairs {
-		// fmt.Printf("Key %s val %s \n", p.key, p.val.value)
 		s.Store.set(p.key, p.val)
-		keys = append(keys, p.key)
 	}
 	return nil
 }
@@ -108,22 +105,14 @@ func (r *RdbParser) parseExpirePairs(keyString []byte, l int) ([]KeyValPair, int
 	i := 2
 	keyIndex := 0
 	for keyIndex < l {
-		expireTimestamp, x := parseTimestamp(keyString, i)
+		expireTimestamp, x, err := parseTimestamp(keyString, i)
+		if err != nil {
+			fmt.Println(err)
+		}
 		i = x
 		valueType := int(keyString[i])
 		i++
 		if valueType == 0 {
-			// keyLength := int(keyString[i])
-			// i++
-			// key := string(keyString[i : i+keyLength])
-			// i += keyLength
-			// valueLength := int(keyString[i])
-			// i++
-			// v := Value{
-			// 	value:      string(keyString[i : i+valueLength]),
-			// 	expireDate: expireTimestamp,
-			// 	savedAt:    time.Now(),
-			// }
 			var pair KeyValPair
 			pair, i = parseKeyAndValue(keyString, i, expireTimestamp)
 			if expireTimestamp.Before(time.Now()) {
@@ -153,7 +142,7 @@ func parseKeyAndValue(pairSec []byte, i int, expTs time.Time) (KeyValPair, int) 
 	i += valueLength
 	return KeyValPair{key: key, val: v}, i
 }
-func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
+func parseTimestamp(tsSlice []byte, i int) (time.Time, int, error) {
 	var timestampLen int
 	if tsSlice[i] == ExpireSeconds {
 		timestampLen = ExpireSecondsLength
@@ -161,16 +150,21 @@ func parseTimestamp(tsSlice []byte, i int) (time.Time, int) {
 		timestampLen = ExpireMillisecondsLength
 	}
 	i++
+	if i+timestampLen > len(tsSlice) {
+		return time.Time{}, i, fmt.Errorf("timestamp length is greater than the slice")
+	}
 	timestamp := tsSlice[i : i+timestampLen]
-	expiryTimeMs := binary.LittleEndian.Uint64(timestamp)
 	var expireTimestamp time.Time
 	if timestampLen == 4 {
-		expireTimestamp = time.Unix(int64(expiryTimeMs), 0)
+		newSlice := []byte{timestamp[0], timestamp[1], timestamp[2], timestamp[3], 0x00, 0x00, 0x00, 0x00}
+		expiryTimeS := binary.LittleEndian.Uint64(newSlice)
+		expireTimestamp = time.Unix(int64(expiryTimeS), 0)
 	} else {
+		expiryTimeMs := binary.LittleEndian.Uint64(timestamp)
 		expireTimestamp = time.UnixMilli(int64(expiryTimeMs))
 	}
 	i += timestampLen
-	return expireTimestamp, i
+	return expireTimestamp, i, nil
 }
 
 func (r *RdbParser) isValid(c []byte) bool {
