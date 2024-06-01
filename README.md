@@ -13,3 +13,30 @@ Folgende Redis spezifische oder Go spezifische Funktionalitäten werden in den A
 - Redis RDB (Redis Database) Parser [RDB Format](https://rdb.fnordig.de/file_format.html)
 - Redis Replication Server mit Handshake und Datenübertragung
 - Redis Stream Format mit XADD und XREAD Befehlen die Streams lesen und schreiben
+
+## Starten des Redis-Servers
+
+```bash
+./spawn_redis_server.sh
+```
+
+mit Port flag
+
+```bash
+./spawn_redis_server.sh -port 6379
+```
+
+als Replication Server verbunden mit dem Master Server auf localhost:6379
+
+```bash
+./spawn_redis_server.sh --port 6380 --replicaof localhost 6379
+```
+
+für weitere Optionen muss die redis-cli installiert sein und kann mit `redis-cli --help` aufgerufen werden.
+Beispiel:
+
+```bash
+redis-cli
+redis-cli set foo bar
+redis-cli get foo
+```
